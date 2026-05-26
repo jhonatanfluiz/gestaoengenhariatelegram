@@ -4,7 +4,7 @@ import {
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
-  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain
+  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -77,6 +77,25 @@ export default function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [tempGeminiKey, setTempGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [showKeyConfig, setShowKeyConfig] = useState(false);
+
+  // Project-specific AI Forecast
+  const [projectForecast, setProjectForecast] = useState(() => {
+    try {
+      const saved = localStorage.getItem('project_forecasts');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [forecastLoading, setForecastLoading] = useState(false);
+
+  const updateProjectForecast = (projectId, text) => {
+    setProjectForecast(prev => {
+      const updated = { ...prev, [projectId]: text };
+      localStorage.setItem('project_forecasts', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   // Forms
   const [newProjName, setNewProjName] = useState('');
@@ -1020,6 +1039,113 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
     }
   };
 
+  const handleGenerateProjectForecast = async () => {
+    if (!activeProject) return;
+
+    const key = tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY;
+    if (!key) {
+      showToast('Por favor, configure sua Gemini API Key na aba de relatórios de eficiência ou no próprio painel para habilitar a previsão.', 'warning');
+      return;
+    }
+
+    setForecastLoading(true);
+
+    try {
+      const completedList = projectPhases.filter(p => p.progress_percent === 100).map(p => `Fase ${p.phases.phase_number}: ${p.phases.name}`);
+      const pendingList = projectPhases.filter(p => p.progress_percent < 100).map(p => `Fase ${p.phases.phase_number}: ${p.phases.name} (${p.progress_percent}% concluído)`);
+
+      const prompt = `Você é um supervisor sênior especialista em instalação de elevadores comerciais. 
+Estime de forma realista a data estimada de término e o status do projeto baseado nas informações abaixo.
+
+**Dados da Obra:**
+- Nome da Obra: ${activeProject.project_name}
+- Modelo do Elevador: ${activeProject.elevator_model}
+- Data de Início: ${activeProject.start_date}
+- Data Limite do Contrato (Deadline): ${activeProject.deadline_date} (Prazo total padrão de 60 dias corridos)
+- Dias Decorridos desde o Início: ${activeProject.days_elapsed} dias
+- Progresso Físico Real Acumulado: ${activeProject.overall_progress_percent}%
+
+**Fases Já Concluídas (${completedList.length}/20):**
+${completedList.length > 0 ? completedList.join('\n') : 'Nenhuma fase concluída ainda.'}
+
+**Fases Restantes/Pendentes (${pendingList.length}/20):**
+${pendingList.length > 0 ? pendingList.join('\n') : 'Todas as fases concluídas.'}
+
+**Sua tarefa:**
+Escreva uma previsão técnica muito objetiva de término para o gestor.
+1. **Previsão Realista de Término**: Qual a estimativa de dias adicionais e a data aproximada no calendário (ex: DD/MM/AAAA ou meados de tal mês)? Lembre-se que as fases finais de montagem (Ajustes elétricos, Testes operacionais, Ajustes finais e acabamento, Entrega técnica ao cliente) são complexas, exigem precisão de testes e costumam levar cerca de 3 a 5 dias cada caso haja problemas de fiação ou nivelamento.
+2. **Status da Obra**: O projeto deve terminar Dentro do Prazo ou Atrasar? Justifique com base nos dias restantes.
+3. **Ponto de Atenção Técnico**: Cite qual das fases pendentes exige maior cuidado de montagem e por quê.
+
+Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa com negritos nos prazos e datas. Não use introduções formais.`;
+
+      const candidates = [
+        { version: 'v1', model: 'gemini-1.5-flash' },
+        { version: 'v1beta', model: 'gemini-1.5-flash' },
+        { version: 'v1', model: 'gemini-2.0-flash' },
+        { version: 'v1beta', model: 'gemini-2.0-flash' },
+        { version: 'v1', model: 'gemini-2.5-flash' },
+        { version: 'v1beta', model: 'gemini-2.5-flash' }
+      ];
+
+      let response = null;
+      let lastErrorMsg = '';
+
+      for (const cand of candidates) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: prompt
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
+          }
+        } catch (err) {
+          lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
+        }
+      }
+
+      if (!response) {
+        throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
+      }
+
+      const resData = await response.json();
+      const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Previsão indisponível.';
+      
+      // Update local storage and state
+      updateProjectForecast(activeProject.id, text);
+      showToast('Previsão IA atualizada com sucesso!', 'success');
+      
+      // Save key if it worked
+      if (tempGeminiKey && tempGeminiKey.trim()) {
+        localStorage.setItem('gemini_api_key', tempGeminiKey);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Erro ao estimar com IA: ' + e.message, 'danger');
+    } finally {
+      setForecastLoading(false);
+    }
+  };
+
   const renderMarkdown = (text) => {
     if (!text) return null;
     
@@ -1062,6 +1188,38 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
     const inProgressPhases = projectPhases.filter(p => p.started && p.progress_percent < 100);
     const notStartedPhases = projectPhases.filter(p => !p.started);
     
+    // Calculo da Estimativa Linear
+    let linearEstimateText = 'Aguardando progresso...';
+    let linearEstimateDaysRemaining = 0;
+    let isLinearDelayed = false;
+
+    const progress = activeProject.overall_progress_percent || 0;
+    const elapsed = activeProject.days_elapsed || 0;
+    
+    if (progress > 0) {
+      if (progress === 100) {
+        linearEstimateText = 'Concluída';
+      } else {
+        const dailyRate = progress / Math.max(1, elapsed);
+        const totalEstimatedDays = Math.round(100 / dailyRate);
+        linearEstimateDaysRemaining = Math.max(0, totalEstimatedDays - elapsed);
+        
+        // Calculate date
+        const startDateObj = new Date(activeProject.start_date);
+        startDateObj.setDate(startDateObj.getDate() + totalEstimatedDays);
+        
+        // Check if projected date is past deadline
+        const deadlineDateObj = new Date(activeProject.deadline_date);
+        isLinearDelayed = startDateObj > deadlineDateObj;
+        
+        linearEstimateText = `${startDateObj.toLocaleDateString()} (~${linearEstimateDaysRemaining} dias adicionais)`;
+      }
+    } else if (elapsed > 0) {
+      linearEstimateText = 'Nenhum avanço registrado';
+    } else {
+      linearEstimateText = 'Aguardando início';
+    }
+
     return (
       <div className="glass-panel animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Report Header for printing */}
@@ -1133,6 +1291,75 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
             <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Data Limite (Padrão 60 dias): <strong>{new Date(activeProject.deadline_date).toLocaleDateString()}</strong></p>
             <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Dias Decorridos: <strong>{activeProject.days_elapsed} dias</strong></p>
             <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Dias Restantes: <strong>{activeProject.days_remaining} dias</strong></p>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Brain size={16} style={{ color: '#06b6d4' }} />
+                Estimativa de Término
+              </h3>
+              
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Projeção Linear (Automatizada)</span>
+                <strong style={{ fontSize: '0.9rem', color: isLinearDelayed ? '#ef4444' : '#10b981' }}>
+                  {linearEstimateText}
+                </strong>
+              </div>
+              
+              <div style={{ marginTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Previsão Refinada (IA Gemini)</span>
+                
+                {!(tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) ? (
+                  <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)', padding: '10px', borderRadius: '6px', marginTop: '6px' }} className="no-print">
+                    <p style={{ fontSize: '0.75rem', color: '#fca5a5', margin: '0 0 6px' }}>Configure a API Key do Gemini para ativar a estimativa com IA:</p>
+                    <input 
+                      type="password"
+                      className="form-control"
+                      style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', marginBottom: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                      placeholder="Cole sua Gemini API Key aqui"
+                      value={tempGeminiKey}
+                      onChange={e => setTempGeminiKey(e.target.value)}
+                    />
+                    <button 
+                      onClick={() => {
+                        if (tempGeminiKey.trim()) {
+                          localStorage.setItem('gemini_api_key', tempGeminiKey);
+                          showToast('Chave Gemini salva localmente!', 'success');
+                        }
+                      }}
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 8px', fontSize: '0.7rem', width: '100%', border: '1px solid rgba(255,255,255,0.1)' }}
+                    >
+                      Salvar Chave
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {projectForecast[activeProject.id] ? (
+                      <div style={{ fontSize: '0.8rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '110px', overflowY: 'auto' }}>
+                        {renderMarkdown(projectForecast[activeProject.id])}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0' }}>Nenhuma estimativa de IA gerada ainda.</p>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {progress > 0 && progress < 100 && (tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) && (
+              <div className="no-print" style={{ marginTop: '12px' }}>
+                <button
+                  onClick={handleGenerateProjectForecast}
+                  disabled={forecastLoading}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.1)' }}
+                >
+                  <Sparkles size={12} />
+                  {forecastLoading ? 'Calculando Estimativa...' : 'Calcular Estimativa IA'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
