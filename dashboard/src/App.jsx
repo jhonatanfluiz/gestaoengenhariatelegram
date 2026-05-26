@@ -915,6 +915,88 @@ export default function App() {
             <span>Avanço Realizado (%)</span>
           </div>
         </div>
+
+        {/* Weekly Divisions comparison list */}
+        <div style={{ marginTop: '32px', width: '100%', maxWidth: '600px' }}>
+          <h4 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '8px' }}>
+            <Calendar size={18} style={{ color: '#06b6d4' }} />
+            Comparativo de Avanço Semanal (Realizado vs Esperado)
+          </h4>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {sCurveData.map((d, index) => {
+              const proj = projects.find(p => p.project_id === sCurveProjId);
+              let expectedProgress = 0;
+              if (proj) {
+                const start = new Date(proj.start_date).getTime();
+                const end = new Date(proj.deadline_date).getTime();
+                const target = new Date(d.week).getTime();
+                const totalDur = end - start;
+                if (totalDur > 0) {
+                  const elap = target - start;
+                  expectedProgress = elap <= 0 ? 0 : Math.min(100, Math.round((elap / totalDur) * 100));
+                } else {
+                  expectedProgress = 100;
+                }
+              }
+
+              const isAheadOrOnTime = d.progress >= expectedProgress;
+
+              return (
+                <div 
+                  key={index} 
+                  style={{ 
+                    padding: '14px 18px', 
+                    background: 'rgba(255,255,255,0.01)', 
+                    border: '1px solid rgba(255,255,255,0.04)', 
+                    borderRadius: '12px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                      S{index + 1}
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>SEMANA {index + 1}</span>
+                      <h5 style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0, color: '#ffffff' }}>
+                        Semana de {d.week.split('-').reverse().join('/')}
+                      </h5>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 700, color: d.progress === 100 ? '#10b981' : '#06b6d4' }}>{d.progress}%</span>
+                      <p style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Realizado</p>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f59e0b' }}>{expectedProgress}%</span>
+                      <p style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Esperado</p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', minWidth: '90px', justifyContent: 'flex-end' }}>
+                      {isAheadOrOnTime ? (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', padding: '3px 8px', borderRadius: '20px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                          No Prazo
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', padding: '3px 8px', borderRadius: '20px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                          Atrasado
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   };
@@ -1234,12 +1316,15 @@ export default function App() {
                       </div>
 
                       {/* Deadlines */}
-                      <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8' }}>
-                        <span>Restam: <strong>{proj.days_remaining} dias</strong></span>
+                      <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span>Decorridos: <strong>{proj.days_elapsed}d (~{(proj.days_elapsed / 7).toFixed(1)} sem)</strong></span>
+                          <span>Restantes: <strong>{proj.days_remaining}d (~{(proj.days_remaining / 7).toFixed(1)} sem)</strong></span>
+                        </div>
                         {proj.is_delayed ? (
-                          <span style={{ color: '#ef4444', fontWeight: 600 }}>Atraso</span>
+                          <span style={{ color: '#ef4444', fontWeight: 700, background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>Atraso</span>
                         ) : (
-                          <span>Prazo OK</span>
+                          <span style={{ color: '#10b981', fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Prazo OK</span>
                         )}
                       </div>
                     </div>
