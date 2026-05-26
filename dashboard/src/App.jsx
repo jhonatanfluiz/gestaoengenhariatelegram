@@ -4,7 +4,7 @@ import {
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
-  Building, Briefcase, Clock, FileText, BarChart2
+  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -19,18 +19,30 @@ export default function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState(null);
 
-  // Active view states: 'projects' | 'teams' | 'companies' | 'new-project' | 'new-tech' | 'new-company' | 'new-team'
+  // Active view states: 'projects' | 'teams' | 'companies' | 'phases' | 'history' | 's-curve' | 'ranking' | 'new-registry'
   const [activeTab, setActiveTab] = useState('projects');
   
+  // Registration sub-tab: 'project' | 'team' | 'tech' | 'company'
+  const [regSubTab, setRegSubTab] = useState('project');
+
   // Data lists
   const [projects, setProjects] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [teams, setTeams] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [phasesList, setPhasesList] = useState([]);
+  const [allLogs, setAllLogs] = useState([]);
+  const [pendingRankings, setPendingRankings] = useState([]);
+  
+  // Active selected elements
   const [activeProject, setActiveProject] = useState(null);
   const [projectPhases, setProjectPhases] = useState([]);
   const [projectLogs, setProjectLogs] = useState([]);
+
+  // S-Curve states
+  const [sCurveProjId, setSCurveProjId] = useState('');
+  const [sCurveData, setSCurveData] = useState([]);
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -113,6 +125,9 @@ export default function App() {
           fetchProjectPhases(activeProject.project_id);
           fetchProjectAuditLogs(activeProject.project_id);
         }
+        if (sCurveProjId) {
+          fetchSCurveData(sCurveProjId);
+        }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
         fetchDashboardData();
@@ -122,7 +137,16 @@ export default function App() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session, activeProject]);
+  }, [session, activeProject, sCurveProjId]);
+
+  // Fetch S-Curve data when a project is selected
+  useEffect(() => {
+    if (session && sCurveProjId) {
+      fetchSCurveData(sCurveProjId);
+    } else {
+      setSCurveData([]);
+    }
+  }, [sCurveProjId, session]);
 
   const showToast = (text, type = 'success') => {
     setMsgNotification({ text, type });
@@ -136,7 +160,13 @@ export default function App() {
       .select('*');
 
     if (err1) console.error(err1);
-    else setProjects(projs || []);
+    else {
+      setProjects(projs || []);
+      // Set default project for S-Curve if none selected
+      if (projs && projs.length > 0 && !sCurveProjId) {
+        setSCurveProjId(projs[0].project_id);
+      }
+    }
 
     // 2. Fetch technicians
     const { data: techs, error: err2 } = await supabase
@@ -175,6 +205,36 @@ export default function App() {
 
     if (err5) console.error(err5);
     else setTeams(tms || []);
+
+    // 6. Fetch 20 Standard Phases Catalog
+    const { data: phs, error: err6 } = await supabase
+      .from('phases')
+      .select('*')
+      .order('phase_number');
+
+    if (err6) console.error(err6);
+    else setPhasesList(phs || []);
+
+    // 7. Fetch all audit logs
+    const { data: logs, error: err7 } = await supabase
+      .from('change_logs')
+      .select(`
+        *,
+        changed_by_profile:profiles(full_name)
+      `)
+      .order('changed_at', { ascending: false })
+      .limit(50);
+
+    if (err7) console.error(err7);
+    else setAllLogs(logs || []);
+
+    // 8. Fetch Pending Rankings
+    const { data: rank, error: err8 } = await supabase
+      .from('vw_pending_ranking')
+      .select('*');
+
+    if (err8) console.error(err8);
+    else setPendingRankings(rank || []);
   };
 
   const fetchProjectPhases = async (projId) => {
@@ -197,7 +257,6 @@ export default function App() {
     if (error) {
       console.error(error);
     } else {
-      // Sort by phase number in memory
       const sorted = data.sort((a, b) => a.phases.phase_number - b.phases.phase_number);
       setProjectPhases(sorted);
     }
@@ -216,6 +275,39 @@ export default function App() {
 
     if (error) console.error(error);
     else setProjectLogs(data || []);
+  };
+
+  const fetchSCurveData = async (projId) => {
+    const { data, error } = await supabase
+      .from('weekly_answers_log')
+      .select('week_start_date, progress_percent')
+      .eq('project_id', projId);
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    // Group logs by week and calculate project overall average progress for each week
+    const weeklyProgressMap = {};
+    data.forEach(log => {
+      const week = log.week_start_date;
+      if (!weeklyProgressMap[week]) {
+        weeklyProgressMap[week] = { sum: 0, count: 0 };
+      }
+      weeklyProgressMap[week].sum += log.progress_percent;
+      weeklyProgressMap[week].count += 1;
+    });
+
+    const formattedSCurve = Object.keys(weeklyProgressMap).map(week => {
+      const avg = Math.round(weeklyProgressMap[week].sum / 20); // Average of 20 phases
+      return {
+        week,
+        progress: avg
+      };
+    }).sort((a, b) => new Date(a.week).getTime() - new Date(b.week).getTime());
+
+    setSCurveData(formattedSCurve);
   };
 
   const handleAuth = async (e) => {
@@ -345,7 +437,7 @@ export default function App() {
       setNewTechName('');
       setNewTechTelegram('');
       setNewTechCompanyId('');
-      setActiveTab('technicians');
+      setActiveTab('teams'); // Go to teams tab to view teammates
       fetchDashboardData();
     }
   };
@@ -368,11 +460,9 @@ export default function App() {
     } else {
       showToast(`Fase ${phaseNumber} atualizada para ${progress}%!`);
       
-      // Update local state metrics dynamically
       fetchProjectPhases(activeProject.project_id);
       fetchProjectAuditLogs(activeProject.project_id);
       
-      // Reload projects view
       const { data: updatedProj } = await supabase
         .from('vw_looker_studio_metrics')
         .select('*')
@@ -399,7 +489,6 @@ export default function App() {
     } else {
       showToast('Prazo final atualizado com sucesso!');
       
-      // Refresh project object
       const { data: updatedProj } = await supabase
         .from('vw_looker_studio_metrics')
         .select('*')
@@ -413,15 +502,6 @@ export default function App() {
     }
   };
 
-  const handleInstallApp = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') setDeferredPrompt(null);
-      setShowInstallBanner(false);
-    }
-  };
-
   const getProgressColorClass = (percent) => {
     if (percent === 100) return 'bg-progress-p100 progress-p100';
     if (percent === 75) return 'bg-progress-p75 progress-p75';
@@ -430,15 +510,88 @@ export default function App() {
     return 'bg-progress-p0 progress-p0';
   };
 
+  const renderSCurveSVG = () => {
+    if (sCurveData.length === 0) {
+      return (
+        <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>
+          Nenhum histórico registrado de curva S para este projeto ainda. Atualize o progresso semanalmente para traçar a curva!
+        </div>
+      );
+    }
+
+    const width = 500;
+    const height = 220;
+    const padding = 35;
+    
+    // Scale data points
+    const pointsCount = sCurveData.length;
+    const xStep = pointsCount > 1 ? (width - padding * 2) / (pointsCount - 1) : 0;
+    
+    const svgPoints = sCurveData.map((d, index) => {
+      const x = padding + index * xStep;
+      // 0% progress starts at bottom (height - padding), 100% starts at top (padding)
+      const y = (height - padding) - (d.progress / 100) * (height - padding * 2);
+      return { x, y, label: `${d.progress}%`, week: d.week };
+    });
+
+    let pathD = '';
+    if (svgPoints.length > 0) {
+      pathD = `M ${svgPoints[0].x} ${svgPoints[0].y} ` + svgPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', maxWidth: '600px', height: 'auto', background: 'rgba(255,255,255,0.01)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+          {/* Grid lines */}
+          {[0, 25, 50, 75, 100].map(val => {
+            const y = (height - padding) - (val / 100) * (height - padding * 2);
+            return (
+              <g key={val}>
+                <line x1={padding} y1={y} x2={width - padding} y2={y} stroke="rgba(255,255,255,0.05)" strokeDasharray="3,3" />
+                <text x={padding - 8} y={y + 4} fill="#94a3b8" fontSize="10" textAnchor="end">{val}%</text>
+              </g>
+            );
+          })}
+
+          {/* S-Curve Path Line */}
+          {pathD && <path d={pathD} fill="none" stroke="#06b6d4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0px 0px 6px rgba(6,182,212,0.4))' }} />}
+
+          {/* S-Curve Data Nodes */}
+          {svgPoints.map((p, index) => (
+            <g key={index}>
+              <circle cx={p.x} cy={p.y} r="5" fill="#06b6d4" stroke="#090d16" strokeWidth="2" />
+              <text x={p.x} y={p.y - 10} fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{p.label}</text>
+              {/* Vertical label line */}
+              <line x1={p.x} y1={p.y + 4} x2={p.x} y2={height - padding} stroke="rgba(255,255,255,0.03)" />
+              {/* Date label */}
+              <text x={p.x} y={height - padding + 15} fill="#94a3b8" fontSize="8" textAnchor="middle" transform={`rotate(15, ${p.x}, ${height - padding + 15})`}>
+                {p.week.split('-').slice(1).reverse().join('/')}
+              </text>
+            </g>
+          ))}
+        </svg>
+
+        {/* Legend */}
+        <div style={{ marginTop: '24px', display: 'flex', gap: '16px', fontSize: '0.85rem', color: '#94a3b8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#06b6d4' }}></span>
+            <span>Avanço Realizado (%)</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: '#090d16' }}>
         <RefreshCw style={{ animation: 'spin 2s linear infinite', color: '#06b6d4' }} size={48} />
-        <p style={{ marginTop: '16px', color: '#94a3b8' }}>Carregando dados estruturados do Supabase...</p>
+        <p style={{ marginTop: '16px', color: '#94a3b8' }}>Carregando painel ElevateSync...</p>
       </div>
     );
   }
 
+  // Not Logged In Screen
   if (!session) {
     return (
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
@@ -448,7 +601,7 @@ export default function App() {
               <Activity style={{ color: '#06b6d4' }} size={32} />
             </div>
             <h1 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>ElevateSync</h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Painel Comercial de Instalações</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Acompanhamento de Obras de Elevadores</p>
           </div>
 
           <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -506,7 +659,7 @@ export default function App() {
           <Activity style={{ color: '#06b6d4' }} size={28} />
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>ElevateSync</h2>
-            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Monitoramento de Instalações Comerciais</p>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Monitoramento de Instalações de Elevadores Comerciais</p>
           </div>
         </div>
         <button onClick={handleLogOut} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
@@ -515,7 +668,7 @@ export default function App() {
         </button>
       </header>
 
-      {/* Project Detail Sub-view */}
+      {/* Detailed Project View */}
       {activeProject ? (
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -531,7 +684,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Project Info Block */}
+          {/* Project details panel */}
           <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ flex: 1, minWidth: '280px' }}>
               <h1 style={{ fontSize: '1.8rem', margin: '0 0 8px' }}>{activeProject.project_name}</h1>
@@ -543,7 +696,7 @@ export default function App() {
               </p>
             </div>
 
-            {/* Editable Deadline Field */}
+            {/* Editable deadline */}
             <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ margin: 0, fontSize: '0.75rem' }}>Prazo Final (Edite se necessário)</label>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -557,7 +710,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Metrics */}
+            {/* Project Metrics */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: '2.2rem', fontWeight: 700, color: '#06b6d4' }}>{activeProject.overall_progress_percent}%</span>
@@ -578,59 +731,84 @@ export default function App() {
             </div>
           </div>
 
-          {/* 20 Phases Grid */}
-          <div className="glass-panel" style={{ padding: '24px' }}>
-            <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Wrench size={20} style={{ color: '#06b6d4' }} />
-              Acompanhamento de Fases (Fases 1 a 20)
-            </h3>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '16px' }}>
-              {projectPhases.map((phase) => (
-                <div 
-                  key={phase.id} 
-                  className={getProgressColorClass(phase.progress_percent)}
-                  style={{
-                    padding: '16px', borderRadius: '12px', border: '1px solid',
-                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.8 }}>FASE {phase.phases.phase_number}/20</span>
-                      {phase.progress_percent === 100 && <CheckCircle size={16} />}
-                    </div>
-                    <p style={{ fontWeight: 600, fontSize: '0.95rem', color: '#ffffff' }}>{phase.phases.name}</p>
-                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', opacity: 0.85 }}>{phase.phases.description}</p>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', opacity: 0.9 }}>
-                      <span>Status: <strong>{phase.started ? 'Executado' : 'Não Executado'}</strong></span>
-                      <span>Progresso: <strong>{phase.progress_percent}%</strong></span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', lg: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
+            {/* 20 Phases list */}
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Wrench size={20} style={{ color: '#06b6d4' }} />
+                Acompanhamento das 20 Fases Padrão (Fórmulas Ativas)
+              </h3>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {projectPhases.map((phase) => (
+                  <div 
+                    key={phase.id} 
+                    className={getProgressColorClass(phase.progress_percent)}
+                    style={{
+                      padding: '16px', borderRadius: '12px', border: '1px solid',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px'
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.8 }}>FASE {phase.phases.phase_number}/20</span>
+                        {phase.progress_percent === 100 && <CheckCircle size={16} />}
+                      </div>
+                      <p style={{ fontWeight: 600, fontSize: '0.95rem', color: '#ffffff' }}>{phase.phases.name}</p>
+                      <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '4px', opacity: 0.85 }}>{phase.phases.description}</p>
                     </div>
 
-                    {/* Progress selector */}
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      <button 
-                        onClick={() => handlePhaseOverride(phase.phases.id, phase.phases.phase_number, false, 0)}
-                        style={{ padding: '4px 6px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: phase.progress_percent === 0 ? 'rgba(255,255,255,0.2)' : 'none', color: '#fff', cursor: 'pointer' }}
-                      >
-                        NÃO
-                      </button>
-                      {[25, 50, 75, 100].map(val => (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', opacity: 0.9 }}>
+                        <span>Status: <strong>{phase.started ? 'SIM' : 'NÃO'}</strong></span>
+                        <span>Progresso: <strong>{phase.progress_percent}%</strong></span>
+                      </div>
+
+                      {/* Progress selector */}
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         <button 
-                          key={val}
-                          onClick={() => handlePhaseOverride(phase.phases.id, phase.phases.phase_number, true, val)}
-                          style={{ padding: '4px 6px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: phase.progress_percent === val ? 'rgba(255,255,255,0.25)' : 'none', color: '#fff', cursor: 'pointer' }}
+                          onClick={() => handlePhaseOverride(phase.phases.id, phase.phases.phase_number, false, 0)}
+                          style={{ padding: '4px 6px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: phase.progress_percent === 0 ? 'rgba(255,255,255,0.2)' : 'none', color: '#fff', cursor: 'pointer' }}
                         >
-                          {val}%
+                          NÃO
                         </button>
-                      ))}
+                        {[25, 50, 75, 100].map(val => (
+                          <button 
+                            key={val}
+                            onClick={() => handlePhaseOverride(phase.phases.id, phase.phases.phase_number, true, val)}
+                            style={{ padding: '4px 6px', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', background: phase.progress_percent === val ? 'rgba(255,255,255,0.25)' : 'none', color: '#fff', cursor: 'pointer' }}
+                          >
+                            {val}%
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+
+            {/* Audit Logs for this project */}
+            <div className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={20} style={{ color: '#06b6d4' }} />
+                Histórico de Logs (Últimos 10)
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto' }}>
+                {projectLogs.length === 0 ? (
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Nenhum log de alteração registrado.</p>
+                ) : (
+                  projectLogs.map(log => (
+                    <div key={log.id} style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', padding: '12px', borderRadius: '8px', fontSize: '0.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#06b6d4', fontWeight: 600 }}>
+                        <span>Ação: {log.action}</span>
+                        <span>{new Date(log.changed_at).toLocaleDateString()}</span>
+                      </div>
+                      <p style={{ color: '#ffffff', marginTop: '4px' }}>Alterado por: {log.changed_by_profile?.full_name || 'Sistema'}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </main>
@@ -638,16 +816,17 @@ export default function App() {
         /* Standard Navigation Views */
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Tabs */}
+          {/* Main Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflowX: 'auto' }}>
             {[
-              { id: 'projects', label: 'Instalações Comerciais' },
-              { id: 'teams', label: 'Equipes de Campo' },
-              { id: 'companies', label: 'Clientes / Empresas' },
-              { id: 'new-project', label: '+ Nova Obra' },
-              { id: 'new-team', label: '+ Nova Equipe' },
-              { id: 'new-tech', label: '+ Novo Técnico' },
-              { id: 'new-company', label: '+ Novo Cliente' }
+              { id: 'projects', label: 'Obras Comerciais' },
+              { id: 'teams', label: 'Equipes & Equipe' },
+              { id: 'companies', label: 'Clientes & Empresas' },
+              { id: 'phases', label: 'Checklists & Fases' },
+              { id: 's-curve', label: 'Curva S & Avanço' },
+              { id: 'ranking', label: 'Ranking de Pendências' },
+              { id: 'history', label: 'Histórico & Auditoria' },
+              { id: 'new-registry', label: '📝 Cadastros (+)' }
             ].map(tab => (
               <button 
                 key={tab.id}
@@ -665,8 +844,8 @@ export default function App() {
               {projects.length === 0 ? (
                 <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', gridColumn: '1 / -1' }}>
                   <AlertTriangle style={{ color: '#f59e0b', marginBottom: '12px' }} size={32} />
-                  <h4 style={{ color: '#ffffff' }}>Nenhuma instalação comercial cadastrada</h4>
-                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '8px' }}>Selecione "+ Nova Obra" acima para inicializar a instalação de um elevador.</p>
+                  <h4 style={{ color: '#ffffff' }}>Nenhuma obra comercial cadastrada</h4>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '8px' }}>Selecione a aba "📝 Cadastros (+)" acima para inicializar a instalação de um elevador.</p>
                 </div>
               ) : (
                 projects.map((proj) => (
@@ -686,7 +865,7 @@ export default function App() {
                         <Users size={14} /> Equipe: {proj.team_name || 'Sem equipe'}
                       </p>
                       
-                      {/* Linear bar metrics */}
+                      {/* Progress bar */}
                       <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ flex: 1, height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
                           <div style={{ width: `${proj.overall_progress_percent}%`, height: '100%', backgroundColor: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4', borderRadius: '3px' }}></div>
@@ -720,17 +899,44 @@ export default function App() {
 
           {/* Teams tab */}
           {activeTab === 'teams' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }} className="animate-fade-in">
-              {teams.length === 0 ? (
-                <p style={{ color: '#94a3b8' }}>Nenhuma equipe cadastrada.</p>
-              ) : (
-                teams.map(t => (
-                  <div key={t.id} className="glass-panel" style={{ padding: '20px' }}>
-                    <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
-                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Empresa Parceira: {t.companies?.name || 'Não associada'}</p>
-                  </div>
-                ))
-              )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} className="animate-fade-in">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                {teams.length === 0 ? (
+                  <p style={{ color: '#94a3b8' }}>Nenhuma equipe cadastrada.</p>
+                ) : (
+                  teams.map(t => (
+                    <div key={t.id} className="glass-panel" style={{ padding: '20px' }}>
+                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
+                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Empresa Parceira: {t.companies?.name || 'Não associada'}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Technicians section */}
+              <div className="glass-panel" style={{ padding: '24px' }}>
+                <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <UserCheck size={20} style={{ color: '#06b6d4' }} />
+                  Técnicos Cadastrados
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                  {technicians.length === 0 ? (
+                    <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Nenhum técnico cadastrado ainda.</p>
+                  ) : (
+                    technicians.map(tech => (
+                      <div key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4' }}>
+                          <HardHat size={16} />
+                        </div>
+                        <div>
+                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{tech.full_name}</p>
+                          <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Telegram Chat ID: <code>{tech.telegram_chat_id}</code></p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -738,7 +944,7 @@ export default function App() {
           {activeTab === 'companies' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }} className="animate-fade-in">
               {companies.length === 0 ? (
-                <p style={{ color: '#94a3b8' }}>Nenhuma empresa cadastrada.</p>
+                <p style={{ color: '#94a3b8' }}>Nenhuma empresa parceira cadastrada.</p>
               ) : (
                 companies.map(c => (
                   <div key={c.id} className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -753,136 +959,295 @@ export default function App() {
             </div>
           )}
 
-          {/* New Project Form */}
-          {activeTab === 'new-project' && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '28px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-              <h3 style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Plus style={{ color: '#06b6d4' }} /> Nova Obra de Elevador Comercial
+          {/* Checklist & Phases tab */}
+          {activeTab === 'phases' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={20} style={{ color: '#06b6d4' }} />
+                Checklist Padrão: Cadastro das 20 Fases Técnicas
               </h3>
-              
-              <form onSubmit={handleCreateProject} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px' }}>
+                Estas são as 20 fases técnicas pré-cadastradas que toda nova instalação de elevador segue obrigatoriamente.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {phasesList.map(p => (
+                  <div key={p.id} style={{ display: 'flex', gap: '16px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px', alignItems: 'center' }}>
+                    <div style={{ width: '40px', height: '40px', background: 'rgba(6,182,212,0.08)', border: '1px solid rgba(6,182,212,0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyText: 'center', justifyContent: 'center', color: '#06b6d4', fontWeight: 'bold' }}>
+                      {p.phase_number}
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#ffffff' }}>{p.name}</h4>
+                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>{p.description}</p>
+                    </div>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', fontSize: '0.75rem', background: 'rgba(255,255,255,0.02)', padding: '8px 12px', borderRadius: '8px' }}>
+                      <span style={{ color: '#06b6d4' }}>Perguntas:</span>
+                      <span>1. Executado?</span>
+                      <span>|</span>
+                      <span>2. Progresso (25% a 100%)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* S-Curve & weekly progress chart tab */}
+          {activeTab === 's-curve' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
                 <div>
-                  <label>Identificação da Obra / Localização</label>
-                  <input type="text" value={newProjName} onChange={e => setNewProjName(e.target.value)} required placeholder="Ex: Shopping Iguatemi - Elevador Serviço 3" />
+                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart2 size={20} style={{ color: '#06b6d4' }} />
+                    Curva de Avanço (Curva S - Medição Semanal)
+                  </h3>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px' }}>
+                    Histórico consolidado do avanço percentual das obras ao longo das semanas de trabalho.
+                  </p>
                 </div>
                 
+                {/* Project selector */}
                 <div>
-                  <label>Modelo do Elevador</label>
-                  <input type="text" value={newProjModel} onChange={e => setNewProjModel(e.target.value)} required placeholder="Ex: Schindler 5500" />
-                </div>
-
-                <div>
-                  <label>Cliente (Empresa)</label>
-                  <select value={newProjCompanyId} onChange={e => setNewProjCompanyId(e.target.value)} required>
-                    <option value="">-- Selecione o Cliente --</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                  <select value={sCurveProjId} onChange={e => setSCurveProjId(e.target.value)} style={{ width: '260px' }}>
+                    <option value="">-- Selecione uma Obra --</option>
+                    {projects.map(p => (
+                      <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
                     ))}
                   </select>
                 </div>
+              </div>
 
-                <div>
-                  <label>Equipe de Instalação Responsável</label>
-                  <select value={newProjTeamId} onChange={e => setNewProjTeamId(e.target.value)}>
-                    <option value="">-- Selecione a Equipe --</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
-                    ))}
-                  </select>
-                </div>
+              {sCurveProjId && renderSCurveSVG()}
+            </div>
+          )}
 
-                <div>
-                  <label>Gestor da Obra</label>
-                  <select value={newProjManagerId} onChange={e => setNewProjManagerId(e.target.value)}>
-                    <option value="">-- Selecione o Gestor --</option>
-                    {managers.map(m => (
-                      <option key={m.id} value={m.id}>{m.full_name}</option>
-                    ))}
-                  </select>
-                </div>
+          {/* Pending Rankings tab */}
+          {activeTab === 'ranking' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={20} style={{ color: '#f59e0b' }} />
+                Ranking de Pendências (Fases Incompletas)
+              </h3>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px' }}>
+                Obras ordenadas pelo volume de pendências e fases não iniciadas.
+              </p>
 
-                <div>
-                  <label>Data de Início da Obra</label>
-                  <input type="date" value={newProjStartDate} onChange={e => setNewProjStartDate(e.target.value)} required />
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {pendingRankings.length === 0 ? (
+                  <p style={{ color: '#94a3b8' }}>Nenhuma pendência pendente nas obras ativas!</p>
+                ) : (
+                  pendingRankings.map((rank, idx) => (
+                    <div key={rank.project_id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>{idx + 1}</span>
+                          {rank.project_name}
+                        </h4>
+                        <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
+                          <span style={{ color: '#ef4444' }}>{rank.not_started_phases_count} Não Iniciadas</span>
+                          <span style={{ color: '#f59e0b' }}>{rank.in_progress_phases_count} Em Progresso</span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8' }}>
+                        <strong>Fases Pendentes:</strong> {rank.pending_phases_list || 'Nenhuma'}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
 
-                <div>
-                  <label>Prazo Final Estimado (Padrão: 60 dias corridos)</label>
-                  <input type="date" value={newProjDeadline} onChange={e => setNewProjDeadline(e.target.value)} required />
-                </div>
+          {/* Audit Logs tab */}
+          {activeTab === 'history' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={20} style={{ color: '#06b6d4' }} />
+                Histórico Completo & Logs de Auditoria (Últimos 50 eventos)
+              </h3>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px' }}>
+                Rastreabilidade de todas as criações, edições e deleções feitas pelo sistema ou webhooks.
+              </p>
 
-                <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>
-                  Criar Projeto & Inicializar Fases
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '600px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', textAlign: 'left', color: '#94a3b8' }}>
+                      <th style={{ padding: '12px 8px' }}>Data/Hora</th>
+                      <th style={{ padding: '12px 8px' }}>Tabela</th>
+                      <th style={{ padding: '12px 8px' }}>Ação</th>
+                      <th style={{ padding: '12px 8px' }}>Usuário</th>
+                      <th style={{ padding: '12px 8px' }}>Novos Dados</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" style={{ padding: '20px 8px', textAlign: 'center', color: '#94a3b8' }}>Nenhum log de alteração disponível.</td>
+                      </tr>
+                    ) : (
+                      allLogs.map(log => (
+                        <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', color: '#ffffff' }}>
+                          <td style={{ padding: '12px 8px', color: '#94a3b8' }}>{new Date(log.changed_at).toLocaleString()}</td>
+                          <td style={{ padding: '12px 8px' }}><code style={{ background: 'rgba(255,255,255,0.02)', padding: '2px 6px', borderRadius: '4px' }}>{log.table_name}</code></td>
+                          <td style={{ padding: '12px 8px' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', background: log.action === 'UPDATE' ? 'rgba(6,182,212,0.1)' : log.action === 'INSERT' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: log.action === 'UPDATE' ? '#06b6d4' : log.action === 'INSERT' ? '#10b981' : '#ef4444' }}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 8px' }}>{log.changed_by_profile?.full_name || 'Sistema (Bot/Webhook)'}</td>
+                          <td style={{ padding: '12px 8px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#94a3b8' }}>
+                            {JSON.stringify(log.new_data || log.old_data)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Unified Registration form tab */}
+          {activeTab === 'new-registry' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '2px', gap: '8px', marginBottom: '24px', overflowX: 'auto' }}>
+                <button 
+                  onClick={() => setRegSubTab('project')} 
+                  style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'project' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'project' ? '2px solid #06b6d4' : 'none' }}
+                >
+                  Nova Obra
                 </button>
-              </form>
-            </div>
-          )}
+                <button 
+                  onClick={() => setRegSubTab('team')} 
+                  style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'team' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'team' ? '2px solid #06b6d4' : 'none' }}
+                >
+                  Nova Equipe
+                </button>
+                <button 
+                  onClick={() => setRegSubTab('tech')} 
+                  style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'tech' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'tech' ? '2px solid #06b6d4' : 'none' }}
+                >
+                  Novo Técnico
+                </button>
+                <button 
+                  onClick={() => setRegSubTab('company')} 
+                  style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'company' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'company' ? '2px solid #06b6d4' : 'none' }}
+                >
+                  Novo Cliente
+                </button>
+              </div>
 
-          {/* New Team Form */}
-          {activeTab === 'new-team' && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '28px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-              <h3 style={{ marginBottom: '20px' }}>Nova Equipe de Instalação</h3>
-              <form onSubmit={handleCreateTeam} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label>Nome da Equipe</label>
-                  <input type="text" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} required placeholder="Ex: Equipe Alfa - Montadores" />
-                </div>
-                <div>
-                  <label>Empresa Vinculada</label>
-                  <select value={newTeamCompanyId} onChange={e => setNewTeamCompanyId(e.target.value)} required>
-                    <option value="">-- Selecione a Empresa --</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <button type="submit" className="btn btn-primary">Criar Equipe</button>
-              </form>
-            </div>
-          )}
+              {/* Form Renderers */}
+              {regSubTab === 'project' && (
+                <form onSubmit={handleCreateProject} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Cadastrar Elevador Comercial para Instalação</h4>
+                  <div>
+                    <label>Identificação / Nome da Obra</label>
+                    <input type="text" value={newProjName} onChange={e => setNewProjName(e.target.value)} required placeholder="Ex: Shopping Iguatemi - Elevador 1" />
+                  </div>
+                  <div>
+                    <label>Modelo do Elevador</label>
+                    <input type="text" value={newProjModel} onChange={e => setNewProjModel(e.target.value)} required placeholder="Ex: Schindler 5500" />
+                  </div>
+                  <div>
+                    <label>Cliente / Empresa Proprietária</label>
+                    <select value={newProjCompanyId} onChange={e => setNewProjCompanyId(e.target.value)} required>
+                      <option value="">-- Selecione o Cliente --</option>
+                      {companies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Equipe de Instalação Responsável</label>
+                    <select value={newProjTeamId} onChange={e => setNewProjTeamId(e.target.value)}>
+                      <option value="">-- Selecione a Equipe --</option>
+                      {teams.map(t => (
+                        <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Gestor Técnico Responsável (Obra)</label>
+                    <select value={newProjManagerId} onChange={e => setNewProjManagerId(e.target.value)}>
+                      <option value="">-- Selecione o Gestor --</option>
+                      {managers.map(m => (
+                        <option key={m.id} value={m.id}>{m.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Data de Início</label>
+                    <input type="date" value={newProjStartDate} onChange={e => setNewProjStartDate(e.target.value)} required />
+                  </div>
+                  <div>
+                    <label>Prazo Limite para Conclusão (Padrão: 60 dias corridos)</label>
+                    <input type="date" value={newProjDeadline} onChange={e => setNewProjDeadline(e.target.value)} required />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Inicializar Obra</button>
+                </form>
+              )}
 
-          {/* New Tech Form */}
-          {activeTab === 'new-tech' && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '28px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-              <h3 style={{ marginBottom: '20px' }}>Adicionar Técnico Autorizado</h3>
-              <form onSubmit={handleCreateTechnician} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label>Nome do Técnico</label>
-                  <input type="text" value={newTechName} onChange={e => setNewTechName(e.target.value)} required placeholder="Ex: João da Silva" />
-                </div>
-                <div>
-                  <label>Telegram Chat ID</label>
-                  <input type="text" value={newTechTelegram} onChange={e => setNewTechTelegram(e.target.value)} required placeholder="Ex: 81273981" />
-                </div>
-                <div>
-                  <label>Empresa do Técnico (Opcional)</label>
-                  <select value={newTechCompanyId} onChange={e => setNewTechCompanyId(e.target.value)}>
-                    <option value="">-- Selecione a Empresa --</option>
-                    {companies.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <button type="submit" className="btn btn-primary">Cadastrar Técnico</button>
-              </form>
-            </div>
-          )}
+              {regSubTab === 'team' && (
+                <form onSubmit={handleCreateTeam} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Nova Equipe de Instalação de Elevadores</h4>
+                  <div>
+                    <label>Nome da Equipe</label>
+                    <input type="text" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} required placeholder="Ex: Equipe Leste - Montadores" />
+                  </div>
+                  <div>
+                    <label>Empresa Vinculada</label>
+                    <select value={newTeamCompanyId} onChange={e => setNewTeamCompanyId(e.target.value)} required>
+                      <option value="">-- Selecione a Empresa --</option>
+                      {companies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Criar Equipe</button>
+                </form>
+              )}
 
-          {/* New Company Form */}
-          {activeTab === 'new-company' && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '28px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
-              <h3 style={{ marginBottom: '20px' }}>Cadastrar Nova Empresa Cliente</h3>
-              <form onSubmit={handleCreateCompany} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <label>Nome da Empresa</label>
-                  <input type="text" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} required placeholder="Ex: Elevadores & Cia Ltda" />
-                </div>
-                <div>
-                  <label>CNPJ (Opcional)</label>
-                  <input type="text" value={newCompanyCnpj} onChange={e => setNewCompanyCnpj(e.target.value)} placeholder="Ex: 00.000.000/0001-00" />
-                </div>
-                <button type="submit" className="btn btn-primary">Cadastrar Empresa</button>
-              </form>
+              {regSubTab === 'tech' && (
+                <form onSubmit={handleCreateTechnician} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Adicionar Técnico Autorizado</h4>
+                  <div>
+                    <label>Nome Completo do Técnico</label>
+                    <input type="text" value={newTechName} onChange={e => setNewTechName(e.target.value)} required placeholder="Ex: João da Silva" />
+                  </div>
+                  <div>
+                    <label>Telegram Chat ID</label>
+                    <input type="text" value={newTechTelegram} onChange={e => setNewTechTelegram(e.target.value)} required placeholder="Ex: 81273981" />
+                  </div>
+                  <div>
+                    <label>Empresa do Técnico (Opcional)</label>
+                    <select value={newTechCompanyId} onChange={e => setNewTechCompanyId(e.target.value)}>
+                      <option value="">-- Selecione a Empresa --</option>
+                      {companies.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Técnico</button>
+                </form>
+              )}
+
+              {regSubTab === 'company' && (
+                <form onSubmit={handleCreateCompany} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Cadastrar Nova Empresa Cliente</h4>
+                  <div>
+                    <label>Nome da Empresa</label>
+                    <input type="text" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} required placeholder="Ex: Elevadores & Cia Ltda" />
+                  </div>
+                  <div>
+                    <label>CNPJ (Opcional)</label>
+                    <input type="text" value={newCompanyCnpj} onChange={e => setNewCompanyCnpj(e.target.value)} placeholder="Ex: 00.000.000/0001-00" />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Empresa</button>
+                </form>
+              )}
             </div>
           )}
 
