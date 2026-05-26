@@ -4,7 +4,7 @@ import {
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
-  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye
+  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -63,6 +63,19 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+
+  // Project sub-tab navigation
+  const [projectSubTab, setProjectSubTab] = useState('phases'); // 'phases' | 'report' | 'history'
+
+  // Report modal state
+  const [activeReportModal, setActiveReportModal] = useState(null); // { type: 'tech' | 'company', data: item }
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  
+  // AI analysis state
+  const [aiAnalysis, setAiAnalysis] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [tempGeminiKey, setTempGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
 
   // Forms
   const [newProjName, setNewProjName] = useState('');
@@ -732,6 +745,614 @@ export default function App() {
     }
   };
 
+  const handleOpenReportModal = async (type, item) => {
+    setActiveReportModal({ type, data: item });
+    setReportLoading(true);
+    setAiAnalysis('');
+    setAiLoading(false);
+    
+    try {
+      const relatedProjects = projects.filter(p => 
+        type === 'tech' ? p.assigned_technician_id === item.id : p.company_id === item.id
+      );
+
+      if (relatedProjects.length === 0) {
+        setReportData({ projects: [], averages: {}, catalogPhases: [] });
+        setReportLoading(false);
+        return;
+      }
+
+      const projectIds = relatedProjects.map(p => p.project_id);
+
+      // Fetch weekly logs
+      const { data: weeklyLogs, error: err1 } = await supabase
+        .from('weekly_answers_log')
+        .select('*')
+        .in('project_id', projectIds);
+
+      if (err1) throw err1;
+
+      // Fetch phase progress
+      const { data: phasesProgress, error: err2 } = await supabase
+        .from('project_phases_progress')
+        .select(`
+          id,
+          project_id,
+          started,
+          progress_percent,
+          updated_at,
+          phase_id,
+          phases (
+            id,
+            phase_number,
+            name,
+            description
+          )
+        `)
+        .in('project_id', projectIds);
+
+      if (err2) throw err2;
+
+      // Fetch the catalog of 20 phases to map names easily
+      const { data: catalogPhases, error: err3 } = await supabase
+        .from('phases')
+        .select('*')
+        .order('phase_number');
+
+      if (err3) throw err3;
+
+      // Calculate time spent per phase (efficiency metrics)
+      const durations = {}; // key: phase_number, value: array of durations in days
+
+      relatedProjects.forEach(proj => {
+        const projLogs = (weeklyLogs || []).filter(l => l.project_id === proj.project_id);
+        const projProgress = (phasesProgress || []).filter(p => p.project_id === proj.project_id);
+
+        catalogPhases.forEach(catPhase => {
+          const phaseId = catPhase.id;
+          const phaseNum = catPhase.phase_number;
+          const currentProgress = projProgress.find(p => p.phase_id === phaseId);
+          const phaseLogs = projLogs.filter(l => l.phase_id === phaseId).sort((a, b) => new Date(a.week_start_date) - new Date(b.week_start_date));
+
+          let startDate = null;
+          let endDate = null;
+
+          const firstStartLog = phaseLogs.find(l => l.progress_percent > 0);
+          if (firstStartLog) {
+            startDate = new Date(firstStartLog.week_start_date);
+          } else if (currentProgress && currentProgress.progress_percent > 0) {
+            startDate = new Date(proj.start_date);
+          }
+
+          const firstEndLog = phaseLogs.find(l => l.progress_percent === 100);
+          if (firstEndLog) {
+            endDate = new Date(firstEndLog.week_start_date);
+          } else if (currentProgress && currentProgress.progress_percent === 100) {
+            endDate = new Date(currentProgress.updated_at);
+          }
+
+          if (startDate) {
+            let durationDays = 0;
+            if (endDate) {
+              durationDays = Math.max(1, Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)));
+            } else {
+              durationDays = Math.max(1, Math.round((new Date() - startDate) / (1000 * 60 * 60 * 24)));
+            }
+            if (!durations[phaseNum]) {
+              durations[phaseNum] = [];
+            }
+            durations[phaseNum].push(durationDays);
+          }
+        });
+      });
+
+      // Calculate average durations
+      const averages = {};
+      catalogPhases.forEach(catPhase => {
+        const phaseNum = catPhase.phase_number;
+        const list = durations[phaseNum] || [];
+        if (list.length > 0) {
+          const sum = list.reduce((a, b) => a + b, 0);
+          averages[phaseNum] = Math.round((sum / list.length) * 10) / 10;
+        } else {
+          averages[phaseNum] = 0; // Not started or no data
+        }
+      });
+
+      setReportData({
+        projects: relatedProjects,
+        averages,
+        catalogPhases
+      });
+    } catch (e) {
+      console.error(e);
+      showToast('Erro ao carregar dados do relatório: ' + e.message, 'danger');
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const handleGenerateAIReport = async () => {
+    const key = tempGeminiKey || localStorage.getItem('gemini_api_key');
+    if (!key) {
+      showToast('Por favor, configure sua chave da API do Gemini.', 'danger');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiAnalysis('');
+
+    try {
+      const type = activeReportModal.type;
+      const name = activeReportModal.data.full_name || activeReportModal.data.name;
+      const { projects: relProj, averages, catalogPhases } = reportData;
+
+      // Build data description
+      let dataText = '';
+      catalogPhases.forEach(ph => {
+        const days = averages[ph.phase_number];
+        dataText += `- Fase ${ph.phase_number}: ${ph.name} -> Tempo Médio Gasto: ${days > 0 ? `${days} dias` : 'Sem registros ou não iniciada'}\n`;
+      });
+
+      const prompt = type === 'tech'
+        ? `Você é um supervisor de instalação de elevadores comerciais e especialista em gestão de obras.
+Analise os seguintes dados operacionais do técnico de campo "${name}" nos últimos 12 meses.
+
+**Métricas Operacionais:**
+- Obras sob responsabilidade: ${relProj.length}
+- Progresso médio das obras: ${relProj.length > 0 ? Math.round(relProj.reduce((acc, p) => acc + p.overall_progress_percent, 0) / relProj.length) : 0}%
+- Obras atrasadas: ${relProj.filter(p => p.is_delayed).length}
+
+**Tempo médio gasto por fase técnica de montagem:**
+${dataText}
+
+Por favor, faça uma análise aprofundada:
+1. **Pontuação de Eficiência**: Atribua uma nota de 0 a 100 com base nos prazos e andamento, justificando-a.
+2. **Gargalos Operacionais**: Identifique as fases onde o técnico mais perdeu tempo (fases com maior média de dias). Explique as possíveis razões técnicas para o atraso nessas fases específicas de elevadores comerciais (ex: alinhamento do chassi, ajuste de portas de pavimento, fiação elétrica ou cabos de tração).
+3. **Plano de Ação e Recomendações**: Forneça recomendações de treinamento técnico ou melhorias de processo para que ele consiga otimizar esses gargalos e entregar dentro do prazo padrão de 60 dias.
+
+Gere o relatório formatado em Markdown rico e profissional (use emojis, seções claras e bullet points).`
+        : `Você é um auditor sênior de engenharia de elevadores comerciais e especialista em processos operacionais.
+Analise os seguintes dados consolidados da empresa contratada "${name}" nos últimos 12 meses.
+
+**Métricas da Empresa:**
+- Total de obras em andamento/concluídas: ${relProj.length}
+- Progresso médio geral: ${relProj.length > 0 ? Math.round(relProj.reduce((acc, p) => acc + p.overall_progress_percent, 0) / relProj.length) : 0}%
+- Obras com status de atraso: ${relProj.filter(p => p.is_delayed).length}
+
+**Tempo médio gasto por fase técnica de montagem nas equipes da empresa:**
+${dataText}
+
+Por favor, faça um relatório de auditoria operacional:
+1. **Índice de Eficiência Geral**: Dê uma pontuação de 0 a 100 para a empresa, analisando o cumprimento de prazos.
+2. **Identificação de Gargalos de Equipes**: Aponte as fases técnicas críticas que representam os maiores atrasos agregados na montagem. Forneça o contexto técnico envolvido nestas etapas críticas de elevadores comerciais.
+3. **Recomendações Gerenciais**: Sugira melhorias gerenciais de planejamento (ex: planejamento de entrega de guias, logística de frete, cronograma semanal de avanço com técnicos, integração Conversacional/Telegram) para mitigar atrasos e garantir o limite padrão de 60 dias.
+
+Gere o relatório formatado em Markdown rico e profissional (use emojis, seções claras e bullet points).`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error?.message || 'Erro desconhecido na API do Gemini.');
+      }
+
+      const resData = await response.json();
+      const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Não foi possível extrair a resposta do modelo.';
+      setAiAnalysis(text);
+      
+      // Save key if it worked
+      if (tempGeminiKey) {
+        localStorage.setItem('gemini_api_key', tempGeminiKey);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Erro na análise da IA: ' + e.message, 'danger');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const renderMarkdown = (text) => {
+    if (!text) return null;
+    
+    const lines = text.split('\n');
+    return lines.map((line, index) => {
+      if (line.startsWith('### ')) {
+        return <h4 key={index} style={{ color: '#06b6d4', marginTop: '16px', marginBottom: '8px', fontSize: '1.1rem', fontWeight: 600 }}>{line.replace('### ', '')}</h4>;
+      }
+      if (line.startsWith('## ')) {
+        return <h3 key={index} style={{ color: '#22d3ee', marginTop: '20px', marginBottom: '10px', fontSize: '1.25rem', fontWeight: 700 }}>{line.replace('## ', '')}</h3>;
+      }
+      if (line.startsWith('# ')) {
+        return <h2 key={index} style={{ color: '#ffffff', marginTop: '24px', marginBottom: '12px', fontSize: '1.4rem', fontWeight: 700 }}>{line.replace('# ', '')}</h2>;
+      }
+      if (line.startsWith('- ') || line.startsWith('* ')) {
+        const content = line.substring(2);
+        return <li key={index} style={{ marginLeft: '16px', marginBottom: '6px', color: '#e2e8f0', listStyleType: 'disc' }}>{parseInlineMarkdown(content)}</li>;
+      }
+      if (line.trim() === '') {
+        return <div key={index} style={{ height: '8px' }} />;
+      }
+      return <p key={index} style={{ marginBottom: '8px', lineHeight: 1.5, color: '#e2e8f0' }}>{parseInlineMarkdown(line)}</p>;
+    });
+  };
+
+  const parseInlineMarkdown = (text) => {
+    const parts = text.split('**');
+    return parts.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} style={{ color: '#ffffff', fontWeight: 700 }}>{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  const renderProjectReport = () => {
+    if (!activeProject) return null;
+    
+    const completedPhases = projectPhases.filter(p => p.progress_percent === 100);
+    const inProgressPhases = projectPhases.filter(p => p.started && p.progress_percent < 100);
+    const notStartedPhases = projectPhases.filter(p => !p.started);
+    
+    return (
+      <div className="glass-panel animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Report Header for printing */}
+        <div className="print-only" style={{ borderBottom: '2px solid #000000', paddingBottom: '16px', marginBottom: '20px' }}>
+          <h1 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#000000', margin: 0 }}>ElevateSync - Relatório Técnico de Obra</h1>
+          <p style={{ margin: '6px 0 0', color: '#555555', fontSize: '0.95rem' }}>Gerado em {new Date().toLocaleString()}</p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }} className="no-print">
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Relatório Consolidado da Obra</h2>
+          <button 
+            onClick={() => window.print()} 
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}
+          >
+            <FileText size={16} />
+            Imprimir / Exportar PDF
+          </button>
+        </div>
+
+        {/* Overview section */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '12px' }}>
+          <div>
+            <h4 style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 4px' }}>Obra</h4>
+            <strong style={{ fontSize: '1.1rem', color: '#ffffff' }}>{activeProject.project_name}</strong>
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 4px' }}>Empresa Contratada</h4>
+            <strong style={{ fontSize: '1.1rem', color: '#ffffff' }}>{activeProject.company_name || 'Não atribuída'}</strong>
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 4px' }}>Modelo do Elevador</h4>
+            <strong style={{ fontSize: '1.1rem', color: '#ffffff' }}>{activeProject.elevator_model}</strong>
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', margin: '0 0 4px' }}>Status Operacional</h4>
+            <span style={{ 
+              fontWeight: 700, 
+              color: activeProject.is_delayed ? '#ef4444' : '#10b981',
+              background: activeProject.is_delayed ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              border: activeProject.is_delayed ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(16,185,129,0.2)',
+              fontSize: '0.85rem'
+            }}>
+              {activeProject.is_delayed ? 'Atrasada' : 'No Prazo'}
+            </span>
+          </div>
+        </div>
+
+        {/* Team details and timeline */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '12px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>Equipe Responsável</h3>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Equipe de Campo: <strong>{activeProject.team_name || 'Não atribuída'}</strong></p>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Técnico de Instalação: <strong>{activeProject.technician_name || 'Não atribuído'}</strong></p>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Gestor Supervisor: <strong>{activeProject.manager_name || 'Não atribuído'}</strong></p>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Lembrete Conversacional: <strong>
+              {activeProject.notification_frequency === 'daily' && 'Diário'}
+              {activeProject.notification_frequency === 'weekly' && 'Semanal'}
+              {activeProject.notification_frequency === 'monthly' && 'Mensal'}
+              {activeProject.notification_frequency === 'disabled' && 'Desativado'}
+              {!activeProject.notification_frequency && 'Semanal (Padrão)'}
+            </strong></p>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '12px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '6px' }}>Prazos & Avanço Físico</h3>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Início da Obra: <strong>{new Date(activeProject.start_date).toLocaleDateString()}</strong></p>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Data Limite (Padrão 60 dias): <strong>{new Date(activeProject.deadline_date).toLocaleDateString()}</strong></p>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Dias Decorridos: <strong>{activeProject.days_elapsed} dias</strong></p>
+            <p style={{ margin: '6px 0', fontSize: '0.85rem', color: '#e2e8f0' }}>Dias Restantes: <strong>{activeProject.days_remaining} dias</strong></p>
+          </div>
+        </div>
+
+        {/* Progression stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+          <div style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.1)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <strong style={{ fontSize: '1.5rem', color: '#10b981' }}>{completedPhases.length}</strong>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '4px 0 0' }}>Fases Concluídas</p>
+          </div>
+          <div style={{ background: 'rgba(2,132,199,0.05)', border: '1px solid rgba(2,132,199,0.1)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <strong style={{ fontSize: '1.5rem', color: '#0284c7' }}>{inProgressPhases.length}</strong>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '4px 0 0' }}>Fases Em Andamento</p>
+          </div>
+          <div style={{ background: 'rgba(71,85,105,0.05)', border: '1px solid rgba(71,85,105,0.1)', padding: '16px', borderRadius: '8px', textAlign: 'center' }}>
+            <strong style={{ fontSize: '1.5rem', color: '#94a3b8' }}>{notStartedPhases.length}</strong>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '4px 0 0' }}>Fases Não Iniciadas</p>
+          </div>
+        </div>
+
+        {/* Main table of 20 phases checklist status */}
+        <div>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '12px' }}>Fases Técnicas de Instalação</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                <th style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Nº</th>
+                <th style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Fase Técnica</th>
+                <th style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Iniciado</th>
+                <th style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Progresso</th>
+                <th style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8', fontWeight: 600 }}>Última Atualização</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectPhases.map((phase) => (
+                <tr key={phase.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                  <td style={{ padding: '10px', fontSize: '0.85rem', fontWeight: 700, color: '#06b6d4' }}>{phase.phases.phase_number}</td>
+                  <td style={{ padding: '10px', fontSize: '0.85rem' }}>
+                    <strong>{phase.phases.name}</strong>
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>{phase.phases.description}</div>
+                  </td>
+                  <td style={{ padding: '10px', fontSize: '0.85rem' }}>{phase.started ? 'Sim' : 'Não'}</td>
+                  <td style={{ padding: '10px', fontSize: '0.85rem' }}>
+                    <span style={{ 
+                      color: phase.progress_percent === 100 ? '#10b981' : phase.progress_percent > 0 ? '#0284c7' : '#94a3b8',
+                      fontWeight: 700 
+                    }}>
+                      {phase.progress_percent}%
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px', fontSize: '0.85rem', color: '#94a3b8' }}>
+                    {new Date(phase.updated_at).toLocaleDateString()} {new Date(phase.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const renderReportModal = () => {
+    if (!activeReportModal) return null;
+
+    const { type, data } = activeReportModal;
+    const name = data.full_name || data.name;
+
+    return (
+      <div className="modal-overlay" onClick={() => setActiveReportModal(null)}>
+        <div 
+          className="modal-content glass-panel" 
+          onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '800px', width: '90%', display: 'flex', flexDirection: 'column', gap: '20px' }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Brain size={24} style={{ color: '#06b6d4' }} />
+              Relatório de Eficiência IA: {type === 'tech' ? 'Técnico' : 'Empresa'}
+            </h3>
+            <button 
+              onClick={() => setActiveReportModal(null)} 
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {reportLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <RefreshCw size={36} className="animate-spin" style={{ color: '#06b6d4', margin: '0 auto 16px' }} />
+              <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Compilando métricas operacionais e históricos...</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '4px' }}>
+              
+              {/* Header Info */}
+              <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', padding: '20px', borderRadius: '12px' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '1.1rem', color: '#ffffff' }}>{name}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Obras nos Últimos 12 Meses</span>
+                    <strong style={{ fontSize: '1.25rem', color: '#06b6d4' }}>{reportData?.projects?.length || 0}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Progresso Médio Geral</span>
+                    <strong style={{ fontSize: '1.25rem', color: '#10b981' }}>
+                      {reportData?.projects?.length > 0 
+                        ? `${Math.round(reportData.projects.reduce((acc, p) => acc + p.overall_progress_percent, 0) / reportData.projects.length)}%` 
+                        : '0%'
+                      }
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Obras em Atraso</span>
+                    <strong style={{ fontSize: '1.25rem', color: '#ef4444' }}>
+                      {reportData?.projects?.filter(p => p.is_delayed).length || 0}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {reportData?.projects?.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px', background: 'rgba(255,255,255,0.01)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+                  <AlertTriangle size={32} style={{ color: '#f59e0b', marginBottom: '12px' }} />
+                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Nenhuma obra vinculada a este registro nos últimos 12 meses.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Phase Durations Section */}
+                  <div>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: '#ffffff' }}>Duração Média das Fases Técnicas (Gargalos)</h4>
+                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: '12px' }}>
+                      Dias médios decorridos desde o início da fase até a sua conclusão (100%) em todas as obras sob responsabilidade.
+                    </p>
+                    
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border-color)' }}>
+                            <th style={{ padding: '8px', fontSize: '0.8rem', textAlign: 'left', color: '#94a3b8' }}>Fase</th>
+                            <th style={{ padding: '8px', fontSize: '0.8rem', textAlign: 'left', color: '#94a3b8' }}>Descrição</th>
+                            <th style={{ padding: '8px', fontSize: '0.8rem', textAlign: 'center', color: '#94a3b8' }}>Duração Média</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {reportData?.catalogPhases?.map(ph => {
+                            const avgDays = reportData.averages[ph.phase_number] || 0;
+                            return (
+                              <tr key={ph.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                <td style={{ padding: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#06b6d4' }}>F{ph.phase_number}</td>
+                                <td style={{ padding: '8px', fontSize: '0.8rem', color: '#e2e8f0' }}>{ph.name}</td>
+                                <td style={{ padding: '8px', fontSize: '0.8rem', textAlign: 'center', fontWeight: 'bold', color: avgDays > 10 ? '#ef4444' : avgDays > 5 ? '#f59e0b' : avgDays > 0 ? '#10b981' : '#94a3b8' }}>
+                                  {avgDays > 0 ? `${avgDays} dias` : 'N/A'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* AI Analysis Section */}
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Brain size={18} style={{ color: '#22d3ee' }} />
+                        Análise de Produtividade por IA
+                      </h4>
+                      
+                      {localStorage.getItem('gemini_api_key') || tempGeminiKey ? (
+                        <button 
+                          onClick={handleGenerateAIReport}
+                          disabled={aiLoading}
+                          className="btn btn-primary"
+                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <RefreshCw size={12} className={aiLoading ? 'animate-spin' : ''} />
+                          {aiAnalysis ? 'Atualizar Análise' : 'Gerar Análise'}
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {/* Gemini Key Config if missing */}
+                    {!(localStorage.getItem('gemini_api_key') || tempGeminiKey) && (
+                      <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#f59e0b' }}>
+                          ⚠️ A chave API do Gemini não está configurada no seu ambiente. 
+                          Insira sua chave gratuita do Gemini abaixo para habilitar a análise automática de gargalos.
+                        </p>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input 
+                            type="password"
+                            placeholder="Cole sua Gemini API Key aqui"
+                            value={tempGeminiKey}
+                            onChange={e => setTempGeminiKey(e.target.value)}
+                            style={{ flex: 1, padding: '6px 10px', fontSize: '0.8rem', background: 'rgba(15,23,42,0.8)', border: '1px solid var(--border-color)', color: '#ffffff', borderRadius: '4px' }}
+                          />
+                          <button 
+                            onClick={handleGenerateAIReport}
+                            className="btn btn-primary"
+                            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                          >
+                            Salvar e Gerar
+                          </button>
+                        </div>
+                        <a 
+                          href="https://aistudio.google.com/" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ fontSize: '0.75rem', color: '#06b6d4', textDecoration: 'underline' }}
+                        >
+                          Obter chave gratuita no Google AI Studio ↗
+                        </a>
+                      </div>
+                    )}
+
+                    {/* AI analysis result */}
+                    {aiLoading && (
+                      <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', padding: '30px', borderRadius: '8px', textAlign: 'center' }}>
+                        <RefreshCw size={24} className="animate-spin" style={{ color: '#06b6d4', margin: '0 auto 12px' }} />
+                        <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0 }}>
+                          O Gemini está analisando as 20 fases operacionais e mapeando os principais gargalos técnicos...
+                        </p>
+                      </div>
+                    )}
+
+                    {aiAnalysis && (
+                      <div 
+                        style={{ 
+                          background: 'rgba(15,23,42,0.6)', 
+                          border: '1px solid var(--border-color-active)', 
+                          padding: '20px', 
+                          borderRadius: '8px', 
+                          fontSize: '0.85rem', 
+                          color: '#e2e8f0', 
+                          maxHeight: '350px', 
+                          overflowY: 'auto' 
+                        }}
+                      >
+                        {renderMarkdown(aiAnalysis)}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '12px', justifyContent: 'flex-end' }} className="no-print">
+            {reportData?.projects?.length > 0 && (
+              <button 
+                onClick={() => window.print()} 
+                className="btn btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+              >
+                Imprimir Relatório
+              </button>
+            )}
+            <button 
+              onClick={() => setActiveReportModal(null)} 
+              className="btn btn-primary"
+              style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderEditModal = () => {
     if (!editingElement) return null;
@@ -1239,9 +1860,35 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', lg: '3fr 1fr', gap: '20px', alignItems: 'start' }}>
-            {/* 20 Phases list */}
-            <div className="glass-panel" style={{ padding: '24px' }}>
+          {/* Sub-tabs for Project Details */}
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflowX: 'auto' }} className="no-print">
+            {[
+              { id: 'phases', label: '📋 Fases da Obra' },
+              { id: 'report', label: '📄 Relatório Técnico' },
+              { id: 'history', label: '🕒 Histórico & Logs' }
+            ].map(tab => (
+              <button 
+                key={tab.id}
+                onClick={() => setProjectSubTab(tab.id)} 
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  padding: '10px 16px', 
+                  cursor: 'pointer', 
+                  fontSize: '0.9rem', 
+                  fontWeight: 600, 
+                  color: projectSubTab === tab.id ? '#06b6d4' : '#94a3b8', 
+                  borderBottom: projectSubTab === tab.id ? '2px solid #06b6d4' : 'none', 
+                  whiteSpace: 'nowrap' 
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {projectSubTab === 'phases' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
               <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Wrench size={20} style={{ color: '#06b6d4' }} />
                 Acompanhamento das 20 Fases Padrão (Fórmulas Ativas)
@@ -1295,9 +1942,10 @@ export default function App() {
                 ))}
               </div>
             </div>
+          )}
 
-            {/* Audit Logs for this project */}
-            <div className="glass-panel" style={{ padding: '24px' }}>
+          {projectSubTab === 'history' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
               <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Shield size={20} style={{ color: '#06b6d4' }} />
                 Histórico de Logs (Últimos 10)
@@ -1318,7 +1966,9 @@ export default function App() {
                 )}
               </div>
             </div>
-          </div>
+          )}
+
+          {projectSubTab === 'report' && renderProjectReport()}
         </main>
       ) : (
         /* Standard Navigation Views */
@@ -1433,7 +2083,7 @@ export default function App() {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <button 
-                        onClick={() => { setActiveProject(proj); fetchProjectPhases(proj.project_id); fetchProjectAuditLogs(proj.project_id); }} 
+                        onClick={() => { setActiveProject(proj); setProjectSubTab('phases'); fetchProjectPhases(proj.project_id); fetchProjectAuditLogs(proj.project_id); }} 
                         className="btn btn-primary" style={{ width: '100%', padding: '10px 16px', fontSize: '0.85rem' }}
                       >
                         Acompanhar Fases
@@ -1513,18 +2163,25 @@ export default function App() {
                             <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Telegram Chat ID: <code>{tech.telegram_chat_id}</code></p>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px' }}>
+                        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px', flexWrap: 'wrap' }}>
                           <button 
                             onClick={() => startEdit('tech', tech)} 
-                            className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem' }}
+                            className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
                           >
                             Editar
                           </button>
                           <button 
                             onClick={() => handleDeleteTechnician(tech.id)} 
-                            className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem' }}
+                            className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
                           >
                             Excluir
+                          </button>
+                          <button 
+                            onClick={() => handleOpenReportModal('tech', tech)} 
+                            className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid rgba(6,182,212,0.3)', color: '#06b6d4', marginTop: '4px' }}
+                          >
+                            <Brain size={12} />
+                            Relatório IA
                           </button>
                         </div>
                       </div>
@@ -1550,18 +2207,25 @@ export default function App() {
                         <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>CNPJ: {c.cnpj || 'Não informado'}</p>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', flexWrap: 'wrap' }}>
                       <button 
                         onClick={() => startEdit('company', c)} 
-                        className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                        className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem', minWidth: '60px' }}
                       >
                         Editar
                       </button>
                       <button 
                         onClick={() => handleDeleteCompany(c.id)} 
-                        className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                        className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem', minWidth: '60px' }}
                       >
                         Excluir
+                      </button>
+                      <button 
+                        onClick={() => handleOpenReportModal('company', c)} 
+                        className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '8px 10px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid rgba(6,182,212,0.3)', color: '#06b6d4', marginTop: '4px' }}
+                      >
+                        <Brain size={12} />
+                        Relatório IA
                       </button>
                     </div>
                   </div>
@@ -1890,6 +2554,7 @@ export default function App() {
         </main>
       )}
       {renderEditModal()}
+      {renderReportModal()}
     </div>
   );
 }
