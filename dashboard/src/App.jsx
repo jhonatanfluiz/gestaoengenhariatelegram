@@ -244,6 +244,11 @@ export default function App() {
     setLoading(false);
   };
 
+  const handleLogOut = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+  };
+
   const handleCreateProject = async (e) => {
     e.preventDefault();
     if (!newProjName || !newProjModel || !newProjCompanyId) {
