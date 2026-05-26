@@ -5,7 +5,7 @@ import {
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
-  Send, Trash2
+  Send, Trash2, Upload, FileSpreadsheet
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -120,6 +120,8 @@ export default function App() {
   });
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [uploadedData, setUploadedData] = useState(null);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   const getProjectLinearEstimate = (proj) => {
     if (!proj) return { text: 'Aguardando progresso...', daysRemaining: 0, date: null, isDelayed: false };
@@ -1255,6 +1257,11 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
         return `[${time}] Ação: ${log.action_type} na tabela: ${log.table_name} por: ${user}`;
       }).join('\n');
 
+      let spreadsheetContext = '';
+      if (uploadedData) {
+        spreadsheetContext = `\n**DADOS EXTRATADOS DA PLANILHA EXTERNA (NOVAS OBRAS FUTURAS A INICIAR):**\n${JSON.stringify(uploadedData, null, 2)}\n`;
+      }
+
       const systemPrompt = `Você é o Co-piloto de Gestão Inteligente e Assistente IA do ElevateSync.
 Você é um engenheiro eletrônico sênior e supervisor de instalação especialista em gestão de obras de elevadores comerciais.
 Sua missão é responder perguntas do gestor sobre o andamento das obras, eficiência de equipes e prover suporte técnico.
@@ -1272,12 +1279,18 @@ ${techniciansContext || 'Nenhum técnico cadastrado.'}
 
 **HISTORICO RECENTE DE AUDITORIA (LOGS):**
 ${logsContext || 'Nenhum log de auditoria recente.'}
+${spreadsheetContext}
 
 **INSTRUÇÕES DE RESPOSTA:**
 1. Responda em Markdown rico e profissional, de forma objetiva, direta e amigável.
 2. Sempre que o usuário pedir resumos, estatísticas ou relatórios (ex: "relatório para WhatsApp", "resumo para copiar"), formate a resposta com emojis e marcadores para que fique perfeita para colar no WhatsApp.
 3. Para dúvidas técnicas de montagem (fases de instalação, ajustes, etc.), use sua expertise em elevadores comerciais para responder com autoridade.
 4. Se o usuário perguntar sobre obras específicas, use os dados fornecidos no snapshot (prazos, progresso, linear e IA) para responder de forma precisa.
+5. Caso o usuário solicite a **Previsão de Capacidade (4 Meses)** (especialmente usando os dados da planilha de obras a iniciar anexada), gere uma análise preditiva detalhada para os próximos 4 meses. Para cada mês:
+   - Liste quais obras ativas projetam conclusão naquele mês (e quais técnicos correspondentes serão liberados/ficarão disponíveis).
+   - Liste quais novas obras da planilha enviada estão agendadas para começar naquele mês.
+   - Recomende a alocação dos técnicos liberados ou ociosos para essas novas obras.
+   - Aponte se haverá sobrecarga (obras sem técnicos) ou ociosidade. Apresente um balanço final em tabelas Markdown estruturadas mês a mês.
 
 Histórico da conversa atual:
 ${chatMessages.map(msg => `${msg.role === 'user' ? 'Gestor' : 'Assistente IA'}: ${msg.content}`).join('\n')}
@@ -1370,6 +1383,91 @@ Assistente IA:`;
       localStorage.setItem('elevatesync_chat_history', JSON.stringify(defaultMsg));
       showToast('Histórico de chat limpo!', 'success');
     }
+  };
+
+  const loadSheetJS = () => {
+    return new Promise((resolve, reject) => {
+      if (window.XLSX) {
+        resolve(window.XLSX);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      script.onload = () => resolve(window.XLSX);
+      script.onerror = (err) => reject(new Error('Falha ao carregar SheetJS da CDN'));
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleExcelUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check extensions
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    if (fileExt !== 'xlsx' && fileExt !== 'xls' && fileExt !== 'csv') {
+      showToast('Por favor, envie um arquivo Excel (.xlsx, .xls) ou CSV.', 'danger');
+      return;
+    }
+
+    setChatLoading(true);
+    setUploadedFileName(file.name);
+
+    try {
+      const reader = new FileReader();
+      const readPromise = new Promise((resolve, reject) => {
+        reader.onload = async (event) => {
+          try {
+            const data = new Uint8Array(event.target.result);
+            const XLSX = await loadSheetJS();
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet);
+            resolve(json);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsArrayBuffer(file);
+      });
+
+      const parsedData = await readPromise;
+      if (!Array.isArray(parsedData) || parsedData.length === 0) {
+        throw new Error('A planilha está vazia ou não pôde ser lida corretamente.');
+      }
+
+      setUploadedData(parsedData);
+      showToast(`Planilha "${file.name}" carregada com sucesso!`, 'success');
+
+      // Append system message in chat history
+      const sysMessage = {
+        role: 'assistant',
+        content: `📁 **Planilha Anexada:** \`${file.name}\` contendo **${parsedData.length} registros** de obras futuras/pipeline.\n\nAgora posso cruzar esses dados externos para simular as previsões de mão de obra e alocações. Use o botão rápido **"🔮 Previsão de Capacidade (4 Meses)"** para gerar o relatório!`,
+        timestamp: new Date().toISOString()
+      };
+      
+      const newMessages = [...chatMessages, sysMessage];
+      setChatMessages(newMessages);
+      localStorage.setItem('elevatesync_chat_history', JSON.stringify(newMessages));
+
+    } catch (err) {
+      console.error(err);
+      setUploadedFileName('');
+      setUploadedData(null);
+      showToast('Erro ao ler a planilha: ' + err.message, 'danger');
+    } finally {
+      setChatLoading(false);
+      // Reset input element value so same file can be uploaded again
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveSpreadsheet = () => {
+    setUploadedData(null);
+    setUploadedFileName('');
+    showToast('Planilha desanexada do Assistente.', 'info');
   };
 
   const renderMarkdown = (text) => {
@@ -2997,20 +3095,75 @@ Assistente IA:`;
                     </a>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {/* Quick Suggestions Chips */}
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                    {[
-                      { text: 'Quais obras estão atrasadas neste momento e quem são os responsáveis?', label: '🔴 Obras Atrasadas' },
-                      { text: 'Gere um resumo geral do progresso físico de todas as obras para eu colar no WhatsApp.', label: '📊 Resumo WhatsApp' },
-                      { text: 'Qual fase técnica de elevador comercial representa o maior gargalo nas nossas obras?', label: '🔨 Maior Gargalo' },
-                      { text: 'Quais são os últimos logs de auditoria ou atividades registradas?', label: '🕒 Logs Recentes' }
-                    ].map((chip, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handleSendChatMessage(chip.text)}
-                        disabled={chatLoading}
+              ) : (() => {
+                // Determine suggestions chips dynamically
+                const chips = [
+                  { text: 'Quais obras estão atrasadas neste momento e quem são os responsáveis?', label: '🔴 Obras Atrasadas' },
+                  { text: 'Gere um resumo geral do progresso físico de todas as obras para eu colar no WhatsApp.', label: '📊 Resumo WhatsApp' },
+                  { text: 'Qual fase técnica de elevador comercial representa o maior gargalo nas nossas obras?', label: '🔨 Maior Gargalo' },
+                  { text: 'Quais são os últimos logs de auditoria ou atividades registradas?', label: '🕒 Logs Recentes' }
+                ];
+
+                if (uploadedData) {
+                  chips.unshift({
+                    text: 'Gere a Previsão de Capacidade Operacional para os próximos 4 meses. Liste detalhadamente mês a mês: 1. Obras ativas projetadas para concluir e técnicos correspondentes que serão liberados; 2. Novas obras da planilha anexada programadas para iniciar; 3. Recomendações de alocação de técnicos para essas novas obras; 4. Análise de gargalos ou sobrecargas de equipes. Apresente em formato de tabelas Markdown separadas por mês.',
+                    label: '🔮 Previsão de Capacidade (4 Meses)'
+                  });
+                }
+
+                return (
+                  <>
+                    {/* Excel Upload Panel */}
+                    <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.05)', padding: '16px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }} className="no-print">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: uploadedFileName ? 'rgba(16,185,129,0.1)' : 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: uploadedFileName ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(6,182,212,0.2)' }}>
+                          {uploadedFileName ? <FileSpreadsheet size={20} style={{ color: '#10b981' }} /> : <Upload size={20} style={{ color: '#06b6d4' }} />}
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: '0.85rem', color: '#ffffff', display: 'block' }}>
+                            {uploadedFileName ? 'Planilha de Novas Obras Anexada' : 'Anexar Obras Futuras a Iniciar'}
+                          </strong>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                            {uploadedFileName ? `${uploadedFileName} (${uploadedData?.length || 0} registros)` : 'Carregue arquivos .xlsx ou .csv para cruzamento de capacidade de 4 meses.'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        {uploadedFileName ? (
+                          <button
+                            onClick={handleRemoveSpreadsheet}
+                            className="btn btn-secondary"
+                            style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(239,68,68,0.2)', color: '#ef4444', background: 'rgba(239,68,68,0.05)' }}
+                          >
+                            <X size={12} />
+                            Desanexar
+                          </button>
+                        ) : (
+                          <label 
+                            className="btn btn-secondary"
+                            style={{ padding: '8px 16px', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', border: '1px solid rgba(255,255,255,0.08)', margin: 0 }}
+                          >
+                            <Upload size={12} />
+                            Selecionar Arquivo
+                            <input 
+                              type="file"
+                              accept=".xlsx,.xls,.csv"
+                              onChange={handleExcelUpload}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick Suggestions Chips */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                      {chips.map((chip, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => handleSendChatMessage(chip.text)}
+                          disabled={chatLoading}
                         style={{
                           background: 'rgba(255,255,255,0.02)',
                           border: '1px solid rgba(255,255,255,0.06)',
@@ -3130,9 +3283,10 @@ Assistente IA:`;
                     </button>
                   </div>
                 </>
-              )}
-            </div>
-          )}
+              );
+            })()}
+          </div>
+        )}
 
           {/* Audit Logs tab */}
           {activeTab === 'history' && (
