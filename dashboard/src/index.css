@@ -187,6 +187,11 @@ label {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 @keyframes pulseGlow {
   0% { box-shadow: 0 0 5px rgba(6, 182, 212, 0.2); }
   50% { box-shadow: 0 0 15px rgba(6, 182, 212, 0.5); }

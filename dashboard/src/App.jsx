@@ -4,7 +4,8 @@ import {
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
-  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles
+  Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
+  Send, Trash2
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -98,6 +99,27 @@ export default function App() {
   };
 
   const [rankingMonthFilter, setRankingMonthFilter] = useState('all');
+
+  // AI Chat Assistant States
+  const [chatMessages, setChatMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('elevatesync_chat_history');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Erro ao ler historico de chat:', e);
+    }
+    return [
+      { 
+        role: 'assistant', 
+        content: 'Olá! Sou o Assistente IA do ElevateSync. Tenho acesso completo a todas as obras, técnicos, equipes e logs de auditoria em tempo real.\n\nPosso te ajudar com análises de prazos, resumos para colar no WhatsApp, dúvidas técnicas sobre montagem ou relatórios operacionais. Como posso ajudar hoje?', 
+        timestamp: new Date().toISOString() 
+      }
+    ];
+  });
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   const getProjectLinearEstimate = (proj) => {
     if (!proj) return { text: 'Aguardando progresso...', daysRemaining: 0, date: null, isDelayed: false };
@@ -1178,6 +1200,175 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
       showToast('Erro ao estimar com IA: ' + e.message, 'danger');
     } finally {
       setForecastLoading(false);
+    }
+  };
+
+  const handleSendChatMessage = async (textToSend) => {
+    const messageText = textToSend || chatInput;
+    if (!messageText || !messageText.trim()) return;
+
+    const key = tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY;
+    if (!key) {
+      showToast('Por favor, configure sua Gemini API Key para iniciar a conversa.', 'warning');
+      return;
+    }
+
+    // Add user message to state
+    const newUserMessage = {
+      role: 'user',
+      content: messageText,
+      timestamp: new Date().toISOString()
+    };
+    
+    const updatedMessages = [...chatMessages, newUserMessage];
+    setChatMessages(updatedMessages);
+    localStorage.setItem('elevatesync_chat_history', JSON.stringify(updatedMessages));
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      // Build Context Snapshot
+      let projectsContext = '';
+      projects.forEach((p, index) => {
+        const linearEst = getProjectLinearEstimate(p);
+        const savedForecast = projectForecast[p.project_id] || 'Nenhuma previsão gerada ainda.';
+        
+        projectsContext += `${index + 1}. **Obra**: ${p.project_name}
+   - Elevador: ${p.elevator_model}
+   - Empresa Contratada: ${p.company_name || 'Sem empresa'}
+   - Técnico Responsável: ${p.technician_name || 'Não definido'}
+   - Progresso Físico Real: ${p.overall_progress_percent}%
+   - Dias Decorridos: ${p.days_elapsed} dias
+   - Dias Restantes do Contrato: ${p.days_remaining} dias
+   - Status do Prazo: ${p.is_delayed ? 'ATRASADA' : 'NO PRAZO'}
+   - Lembretes Telegram: ${p.notification_frequency || 'weekly'}
+   - Projeção Linear de Término: ${linearEst.text}
+   - Previsão IA de Término: ${savedForecast}\n\n`;
+      });
+
+      let companiesContext = companies.map(c => `- ${c.name} (ID: ${c.id})`).join('\n');
+      let techniciansContext = technicians.map(t => `- Técnico: ${t.full_name} | Supervisor: ${t.supervisor_name || 'Não definido'}`).join('\n');
+      
+      let logsContext = allLogs.slice(0, 15).map(log => {
+        const time = new Date(log.created_at).toLocaleString('pt-BR');
+        const user = log.changed_by_profile?.full_name || 'Sistema';
+        return `[${time}] Ação: ${log.action_type} na tabela: ${log.table_name} por: ${user}`;
+      }).join('\n');
+
+      const systemPrompt = `Você é o Co-piloto de Gestão Inteligente e Assistente IA do ElevateSync.
+Você é um engenheiro eletrônico sênior e supervisor de instalação especialista em gestão de obras de elevadores comerciais.
+Sua missão é responder perguntas do gestor sobre o andamento das obras, eficiência de equipes e prover suporte técnico.
+
+Você tem acesso ao seguinte snapshot de dados em tempo real do banco de dados (Supabase):
+
+**OBRAS CADASTRADAS E METRICAS:**
+${projectsContext || 'Nenhuma obra cadastrada.'}
+
+**EMPRESAS CONTRATADAS:**
+${companiesContext || 'Nenhuma empresa cadastrada.'}
+
+**TECNICOS DE CAMPO:**
+${techniciansContext || 'Nenhum técnico cadastrado.'}
+
+**HISTORICO RECENTE DE AUDITORIA (LOGS):**
+${logsContext || 'Nenhum log de auditoria recente.'}
+
+**INSTRUÇÕES DE RESPOSTA:**
+1. Responda em Markdown rico e profissional, de forma objetiva, direta e amigável.
+2. Sempre que o usuário pedir resumos, estatísticas ou relatórios (ex: "relatório para WhatsApp", "resumo para copiar"), formate a resposta com emojis e marcadores para que fique perfeita para colar no WhatsApp.
+3. Para dúvidas técnicas de montagem (fases de instalação, ajustes, etc.), use sua expertise em elevadores comerciais para responder com autoridade.
+4. Se o usuário perguntar sobre obras específicas, use os dados fornecidos no snapshot (prazos, progresso, linear e IA) para responder de forma precisa.
+
+Histórico da conversa atual:
+${chatMessages.map(msg => `${msg.role === 'user' ? 'Gestor' : 'Assistente IA'}: ${msg.content}`).join('\n')}
+Gestor: ${messageText}
+Assistente IA:`;
+
+      const candidates = [
+        { version: 'v1', model: 'gemini-1.5-flash' },
+        { version: 'v1beta', model: 'gemini-1.5-flash' },
+        { version: 'v1', model: 'gemini-2.0-flash' },
+        { version: 'v1beta', model: 'gemini-2.0-flash' },
+        { version: 'v1', model: 'gemini-2.5-flash' },
+        { version: 'v1beta', model: 'gemini-2.5-flash' }
+      ];
+
+      let response = null;
+      let lastErrorMsg = '';
+
+      for (const cand of candidates) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: systemPrompt
+                    }
+                  ]
+                }
+              ]
+            })
+          });
+
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
+          }
+        } catch (err) {
+          lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
+        }
+      }
+
+      if (!response) {
+        throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
+      }
+
+      const resData = await response.json();
+      const assistantText = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Desculpe, não consegui formular uma resposta no momento.';
+      
+      const newAssistantMessage = {
+        role: 'assistant',
+        content: assistantText,
+        timestamp: new Date().toISOString()
+      };
+      
+      const finalMessages = [...updatedMessages, newAssistantMessage];
+      setChatMessages(finalMessages);
+      localStorage.setItem('elevatesync_chat_history', JSON.stringify(finalMessages));
+      
+      // Save key if it worked
+      if (tempGeminiKey && tempGeminiKey.trim()) {
+        localStorage.setItem('gemini_api_key', tempGeminiKey);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast('Erro ao processar mensagem do chat: ' + e.message, 'danger');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleClearChatHistory = () => {
+    if (window.confirm('Deseja limpar todo o histórico de conversas com o Assistente IA?')) {
+      const defaultMsg = [
+        { 
+          role: 'assistant', 
+          content: 'Olá! Sou o Assistente IA do ElevateSync. Tenho acesso completo a todas as obras, técnicos, equipes e logs de auditoria em tempo real.\n\nPosso te ajudar com análises de prazos, resumos para colar no WhatsApp, dúvidas técnicas sobre montagem ou relatórios operacionais. Como posso ajudar hoje?', 
+          timestamp: new Date().toISOString() 
+        }
+      ];
+      setChatMessages(defaultMsg);
+      localStorage.setItem('elevatesync_chat_history', JSON.stringify(defaultMsg));
+      showToast('Histórico de chat limpo!', 'success');
     }
   };
 
@@ -2300,6 +2491,7 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
               { id: 'phases', label: 'Checklists & Fases' },
               { id: 's-curve', label: 'Curva S & Avanço' },
               { id: 'ranking', label: 'Ranking de Pendências' },
+              { id: 'ai-chat', label: '🤖 Assistente IA' },
               { id: 'history', label: 'Histórico & Auditoria' },
               { id: 'new-registry', label: '📝 Cadastros (+)' }
             ].map(tab => (
@@ -2751,6 +2943,196 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
               </div>
             );
           })()}
+
+          {/* AI Chat tab */}
+          {activeTab === 'ai-chat' && (
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: '580px' }}>
+              <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem', fontWeight: 600 }}>
+                  <Brain size={22} style={{ color: '#06b6d4' }} />
+                  Assistente IA - Co-piloto de Gestão
+                </h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px' }}>
+                  Pergunte sobre atrasos, status de obras, resumos para o WhatsApp, ou tire dúvidas sobre as fases técnicas de elevadores.
+                </p>
+              </div>
+
+              {!(tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) ? (
+                <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)', padding: '24px', borderRadius: '12px', textAlign: 'center', margin: '40px auto', maxWidth: '500px' }}>
+                  <AlertTriangle size={40} style={{ color: '#f87171', margin: '0 auto 12px' }} />
+                  <h4 style={{ color: '#ffffff', fontWeight: 600, marginBottom: '8px' }}>Chave da API do Gemini Necessária</h4>
+                  <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '20px', lineHeight: 1.5 }}>
+                    Para interagir com o Assistente IA, configure sua Gemini API Key gratuita (gerada no Google AI Studio). A chave é armazenada de forma segura e local no seu navegador.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
+                    <input 
+                      type="password"
+                      className="form-control"
+                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', textAlign: 'center' }}
+                      placeholder="Cole sua Gemini API Key aqui"
+                      value={tempGeminiKey}
+                      onChange={e => setTempGeminiKey(e.target.value)}
+                    />
+                    <button 
+                      onClick={() => {
+                        if (tempGeminiKey.trim()) {
+                          localStorage.setItem('gemini_api_key', tempGeminiKey);
+                          showToast('Chave Gemini salva com sucesso! O assistente está pronto.', 'success');
+                        } else {
+                          showToast('Por favor, digite ou cole uma chave válida.', 'warning');
+                        }
+                      }}
+                      className="btn btn-primary"
+                      style={{ padding: '8px 16px' }}
+                    >
+                      Ativar Assistente IA
+                    </button>
+                    <a 
+                      href="https://aistudio.google.com/" 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      style={{ fontSize: '0.75rem', color: '#06b6d4', textDecoration: 'underline', marginTop: '4px' }}
+                    >
+                      Obtenha uma chave gratuita no Google AI Studio
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Quick Suggestions Chips */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                    {[
+                      { text: 'Quais obras estão atrasadas neste momento e quem são os responsáveis?', label: '🔴 Obras Atrasadas' },
+                      { text: 'Gere um resumo geral do progresso físico de todas as obras para eu colar no WhatsApp.', label: '📊 Resumo WhatsApp' },
+                      { text: 'Qual fase técnica de elevador comercial representa o maior gargalo nas nossas obras?', label: '🔨 Maior Gargalo' },
+                      { text: 'Quais são os últimos logs de auditoria ou atividades registradas?', label: '🕒 Logs Recentes' }
+                    ].map((chip, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSendChatMessage(chip.text)}
+                        disabled={chatLoading}
+                        style={{
+                          background: 'rgba(255,255,255,0.02)',
+                          border: '1px solid rgba(255,255,255,0.06)',
+                          borderRadius: '20px',
+                          padding: '6px 12px',
+                          fontSize: '0.75rem',
+                          color: '#e2e8f0',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(6,182,212,0.1)';
+                          e.currentTarget.style.borderColor = 'rgba(6,182,212,0.3)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+                        }}
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Chat Messages area */}
+                  <div style={{ 
+                    flex: 1, 
+                    minHeight: '350px',
+                    maxHeight: '480px',
+                    overflowY: 'auto', 
+                    background: 'rgba(0,0,0,0.15)', 
+                    border: '1px solid rgba(255,255,255,0.04)', 
+                    borderRadius: '12px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px'
+                  }}>
+                    {chatMessages.map((msg, index) => (
+                      <div 
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                          maxWidth: '85%',
+                          alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                        }}
+                      >
+                        <div style={{
+                          background: msg.role === 'user' ? 'rgba(6,182,212,0.15)' : 'rgba(255,255,255,0.03)',
+                          border: msg.role === 'user' ? '1px solid rgba(6,182,212,0.3)' : '1px solid rgba(255,255,255,0.05)',
+                          borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                          padding: '10px 14px',
+                          color: '#e2e8f0',
+                          fontSize: '0.85rem',
+                          whiteSpace: 'pre-wrap',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}>
+                          {msg.role === 'user' ? msg.content : renderMarkdown(msg.content)}
+                        </div>
+                        <span style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '4px', padding: '0 4px' }}>
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))}
+
+                    {chatLoading && (
+                      <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px 12px 12px 2px' }}>
+                        <div className="spinner" style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.2)', borderTop: '2px solid #06b6d4', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>O Assistente está analisando os dados e redigindo...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input area */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      onClick={handleClearChatHistory}
+                      className="btn btn-secondary"
+                      title="Limpar Histórico de Conversa"
+                      style={{ padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', background: 'rgba(239,68,68,0.05)', color: '#ef4444' }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(239,68,68,0.1)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(239,68,68,0.05)';
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ flex: 1, padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '8px' }}
+                      placeholder="Pergunte ao Assistente (ex: 'Quais obras correm risco de atraso?')..."
+                      value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !chatLoading) {
+                          handleSendChatMessage();
+                        }
+                      }}
+                      disabled={chatLoading}
+                    />
+                    <button
+                      onClick={() => handleSendChatMessage()}
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="btn btn-primary"
+                      style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
+                    >
+                      <Send size={16} />
+                      Enviar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Audit Logs tab */}
           {activeTab === 'history' && (
