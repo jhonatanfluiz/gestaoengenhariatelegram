@@ -75,6 +75,7 @@ CREATE TABLE public.projects (
     start_date DATE NOT NULL DEFAULT CURRENT_DATE,
     deadline_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '60 days')::DATE, -- Padrão de 60 dias alterável
     status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning', 'active', 'completed', 'delayed')),
+    notification_frequency TEXT DEFAULT 'weekly' CHECK (notification_frequency IN ('daily', 'weekly', 'monthly', 'disabled')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -226,7 +227,8 @@ SELECT
     proj.assigned_technician_id,
     proj.company_id,
     proj.team_id,
-    proj.assigned_manager_id
+    proj.assigned_manager_id,
+    proj.notification_frequency
 FROM public.vw_project_metrics pm
 JOIN public.projects proj ON pm.project_id = proj.id
 LEFT JOIN public.companies c ON proj.company_id = c.id

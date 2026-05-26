@@ -52,6 +52,7 @@ export default function App() {
   const [editTeamId, setEditTeamId] = useState('');
   const [editManagerId, setEditManagerId] = useState('');
   const [editTechId, setEditTechId] = useState('');
+  const [editNotificationFreq, setEditNotificationFreq] = useState('weekly');
   const [editStartDate, setEditStartDate] = useState('');
   const [editDeadlineDate, setEditDeadlineDate] = useState('');
   const [editTelegram, setEditTelegram] = useState('');
@@ -70,6 +71,7 @@ export default function App() {
   const [newProjTeamId, setNewProjTeamId] = useState('');
   const [newProjManagerId, setNewProjManagerId] = useState('');
   const [newProjTechId, setNewProjTechId] = useState('');
+  const [newProjNotificationFreq, setNewProjNotificationFreq] = useState('weekly');
   const [newProjStartDate, setNewProjStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [newProjDeadline, setNewProjDeadline] = useState('');
 
@@ -372,6 +374,7 @@ export default function App() {
         team_id: newProjTeamId || null,
         assigned_manager_id: newProjManagerId || null,
         assigned_technician_id: newProjTechId || null,
+        notification_frequency: newProjNotificationFreq || 'weekly',
         start_date: newProjStartDate,
         deadline_date: newProjDeadline
       })
@@ -388,6 +391,7 @@ export default function App() {
       setNewProjTeamId('');
       setNewProjManagerId('');
       setNewProjTechId('');
+      setNewProjNotificationFreq('weekly');
       setActiveTab('projects');
       fetchDashboardData();
     }
@@ -519,6 +523,32 @@ export default function App() {
     }
   };
 
+  const handleUpdateNotificationFrequency = async (freq) => {
+    if (!activeProject) return;
+
+    const { error } = await supabase
+      .from('projects')
+      .update({ notification_frequency: freq })
+      .eq('id', activeProject.project_id);
+
+    if (error) {
+      showToast('Erro ao alterar frequência de lembretes: ' + error.message, 'danger');
+    } else {
+      showToast('Frequência de lembrete atualizada com sucesso!');
+      
+      const { data: updatedProj } = await supabase
+        .from('vw_looker_studio_metrics')
+        .select('*')
+        .eq('project_id', activeProject.project_id)
+        .maybeSingle();
+
+      if (updatedProj) {
+        setActiveProject(updatedProj);
+      }
+      fetchDashboardData();
+    }
+  };
+
   // --- CRUD FUNCTIONS FOR EDIT & DELETE ---
 
   const startEdit = (type, item) => {
@@ -530,6 +560,7 @@ export default function App() {
       setEditTeamId(item.team_id || '');
       setEditManagerId(item.assigned_manager_id || '');
       setEditTechId(item.assigned_technician_id || '');
+      setEditNotificationFreq(item.notification_frequency || 'weekly');
       setEditStartDate(item.start_date || '');
       setEditDeadlineDate(item.deadline_date || '');
     } else if (type === 'team') {
@@ -608,6 +639,7 @@ export default function App() {
         team_id: editTeamId || null,
         assigned_manager_id: editManagerId || null,
         assigned_technician_id: editTechId || null,
+        notification_frequency: editNotificationFreq || 'weekly',
         start_date: editStartDate,
         deadline_date: editDeadlineDate
       })
@@ -772,6 +804,18 @@ export default function App() {
                   {technicians.filter(t => t.company_id === editCompanyId).map(t => (
                     <option key={t.id} value={t.id}>{t.full_name}</option>
                   ))}
+                </select>
+              </div>
+              <div>
+                <label>Frequência de Lembrete Conversacional (Telegram)</label>
+                <select 
+                  value={editNotificationFreq} 
+                  onChange={e => setEditNotificationFreq(e.target.value)}
+                >
+                  <option value="daily">Diário</option>
+                  <option value="weekly">Semanal (Segunda-Feira 08h)</option>
+                  <option value="monthly">Mensal (Todo dia 1º)</option>
+                  <option value="disabled">Desativado</option>
                 </select>
               </div>
               <div>
@@ -1148,6 +1192,32 @@ export default function App() {
               </div>
             </div>
 
+            {/* Programmable Notification Frequency */}
+            <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ margin: 0, fontSize: '0.75rem' }}>Agendar Lembretes Telegram</label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <Bell size={18} style={{ color: activeProject.notification_frequency === 'disabled' ? '#64748b' : '#10b981' }} />
+                <select 
+                  value={activeProject.notification_frequency || 'weekly'} 
+                  onChange={e => handleUpdateNotificationFrequency(e.target.value)}
+                  style={{ 
+                    padding: '6px 12px', 
+                    fontSize: '0.9rem', 
+                    background: 'rgba(15,23,42,0.6)', 
+                    border: '1px solid var(--border-color)', 
+                    color: '#ffffff',
+                    borderRadius: '6px',
+                    cursor: 'pointer'
+                  }} 
+                >
+                  <option value="daily">Diário</option>
+                  <option value="weekly">Semanal (Segunda 08h)</option>
+                  <option value="monthly">Mensal (Dia 1º)</option>
+                  <option value="disabled">Desativado</option>
+                </select>
+              </div>
+            </div>
+
             {/* Project Metrics */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div style={{ textAlign: 'right' }}>
@@ -1304,6 +1374,16 @@ export default function App() {
                       </p>
                       <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                         <HardHat size={14} style={{ color: '#06b6d4' }} /> Técnico Responsável: {proj.technician_name || 'Não definido'}
+                      </p>
+                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                        <Bell size={14} style={{ color: proj.notification_frequency === 'disabled' ? '#64748b' : '#10b981' }} /> 
+                        Lembretes Telegram: <strong style={{ color: proj.notification_frequency === 'disabled' ? '#64748b' : '#06b6d4' }}>
+                          {proj.notification_frequency === 'daily' && 'Diário'}
+                          {proj.notification_frequency === 'weekly' && 'Semanal'}
+                          {proj.notification_frequency === 'monthly' && 'Mensal'}
+                          {proj.notification_frequency === 'disabled' && 'Desativado'}
+                          {!proj.notification_frequency && 'Semanal'}
+                        </strong>
                       </p>
                       
                       {/* Progress Metrics (Realizado vs Esperado) */}
@@ -1720,6 +1800,18 @@ export default function App() {
                       {technicians.filter(t => t.company_id === newProjCompanyId).map(t => (
                         <option key={t.id} value={t.id}>{t.full_name}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Frequência de Lembrete Conversacional (Telegram)</label>
+                    <select 
+                      value={newProjNotificationFreq} 
+                      onChange={e => setNewProjNotificationFreq(e.target.value)}
+                    >
+                      <option value="daily">Diário</option>
+                      <option value="weekly">Semanal (Segunda-Feira 08h)</option>
+                      <option value="monthly">Mensal (Todo dia 1º)</option>
+                      <option value="disabled">Desativado</option>
                     </select>
                   </div>
                   <div>
