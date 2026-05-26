@@ -953,27 +953,54 @@ Por favor, faça um relatório de auditoria operacional:
 
 Gere o relatório formatado em Markdown rico e profissional (use emojis, seções claras e bullet points).`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
+      const candidates = [
+        { version: 'v1', model: 'gemini-1.5-flash' },
+        { version: 'v1beta', model: 'gemini-1.5-flash' },
+        { version: 'v1', model: 'gemini-2.0-flash' },
+        { version: 'v1beta', model: 'gemini-2.0-flash' },
+        { version: 'v1', model: 'gemini-2.5-flash' },
+        { version: 'v1beta', model: 'gemini-2.5-flash' }
+      ];
+
+      let response = null;
+      let lastErrorMsg = '';
+
+      for (const cand of candidates) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              contents: [
                 {
-                  text: prompt
+                  parts: [
+                    {
+                      text: prompt
+                    }
+                  ]
                 }
               ]
-            }
-          ]
-        })
-      });
+            })
+          });
 
-      if (!response.ok) {
-        const errJson = await response.json();
-        throw new Error(errJson.error?.message || 'Erro desconhecido na API do Gemini.');
+          if (res.ok) {
+            response = res;
+            break;
+          } else {
+            const errJson = await res.json().catch(() => ({}));
+            lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
+            console.warn(`Tentativa falhou com ${cand.model} (${cand.version}): ${lastErrorMsg}`);
+          }
+        } catch (err) {
+          lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
+          console.warn(`Erro de rede com ${cand.model} (${cand.version}): ${lastErrorMsg}`);
+        }
+      }
+
+      if (!response) {
+        throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
       }
 
       const resData = await response.json();
