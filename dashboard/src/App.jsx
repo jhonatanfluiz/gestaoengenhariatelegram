@@ -44,6 +44,19 @@ export default function App() {
   const [sCurveProjId, setSCurveProjId] = useState('');
   const [sCurveData, setSCurveData] = useState([]);
 
+  // Editing state for CRUD (Obras, Equipes, Técnicos, Empresas)
+  const [editingElement, setEditingElement] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editCompanyId, setEditCompanyId] = useState('');
+  const [editTeamId, setEditTeamId] = useState('');
+  const [editManagerId, setEditManagerId] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editDeadlineDate, setEditDeadlineDate] = useState('');
+  const [editTelegram, setEditTelegram] = useState('');
+  const [editCnpj, setEditCnpj] = useState('');
+
+
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -502,6 +515,330 @@ export default function App() {
     }
   };
 
+  // --- CRUD FUNCTIONS FOR EDIT & DELETE ---
+
+  const startEdit = (type, item) => {
+    setEditingElement({ type, data: item });
+    if (type === 'project') {
+      setEditName(item.project_name || item.name || '');
+      setEditModel(item.elevator_model || '');
+      setEditCompanyId(item.company_id || '');
+      setEditTeamId(item.team_id || '');
+      setEditManagerId(item.assigned_manager_id || '');
+      setEditStartDate(item.start_date || '');
+      setEditDeadlineDate(item.deadline_date || '');
+    } else if (type === 'team') {
+      setEditName(item.name || '');
+      setEditCompanyId(item.company_id || '');
+    } else if (type === 'tech') {
+      setEditName(item.full_name || '');
+      setEditTelegram(item.telegram_chat_id || '');
+      setEditCompanyId(item.company_id || '');
+    } else if (type === 'company') {
+      setEditName(item.name || '');
+      setEditCnpj(item.cnpj || '');
+    }
+  };
+
+  // DELETE Handlers
+  const handleDeleteProject = async (id) => {
+    if (!window.confirm('Tem certeza de que deseja excluir esta obra? Todas as fases, logs semanais e sessões do bot vinculados serão excluídos permanentemente.')) return;
+    const { error } = await supabase.from('projects').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir obra: ' + error.message, 'danger');
+    } else {
+      showToast('Obra excluída com sucesso!');
+      if (activeProject && activeProject.project_id === id) {
+        setActiveProject(null);
+      }
+      fetchDashboardData();
+    }
+  };
+
+  const handleDeleteTeam = async (id) => {
+    if (!window.confirm('Tem certeza de que deseja excluir esta equipe? As obras associadas ficarão sem equipe e a relação de membros da equipe será limpa.')) return;
+    const { error } = await supabase.from('teams').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir equipe: ' + error.message, 'danger');
+    } else {
+      showToast('Equipe excluída com sucesso!');
+      fetchDashboardData();
+    }
+  };
+
+  const handleDeleteTechnician = async (id) => {
+    if (!window.confirm('Tem certeza de que deseja excluir este técnico?')) return;
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir técnico: ' + error.message, 'danger');
+    } else {
+      showToast('Técnico excluído com sucesso!');
+      fetchDashboardData();
+    }
+  };
+
+  const handleDeleteCompany = async (id) => {
+    if (!window.confirm('Tem certeza de que deseja excluir esta empresa contratada? As equipes dela serão excluídas, os técnicos serão desvinculados e as obras associadas ficarão sem empresa contratada.')) return;
+    const { error } = await supabase.from('companies').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir empresa: ' + error.message, 'danger');
+    } else {
+      showToast('Empresa excluída com sucesso!');
+      fetchDashboardData();
+    }
+  };
+
+  // UPDATE Handlers
+  const handleUpdateProject = async (e) => {
+    e.preventDefault();
+    if (!editingElement) return;
+    const id = editingElement.data.project_id || editingElement.data.id;
+    
+    const { error } = await supabase
+      .from('projects')
+      .update({
+        name: editName,
+        elevator_model: editModel,
+        company_id: editCompanyId || null,
+        team_id: editTeamId || null,
+        assigned_manager_id: editManagerId || null,
+        start_date: editStartDate,
+        deadline_date: editDeadlineDate
+      })
+      .eq('id', id);
+
+    if (error) {
+      showToast('Erro ao atualizar obra: ' + error.message, 'danger');
+    } else {
+      showToast('Obra atualizada com sucesso!');
+      setEditingElement(null);
+      if (activeProject && activeProject.project_id === id) {
+        // Refresh activeProject info
+        const { data: updatedProj } = await supabase
+          .from('vw_looker_studio_metrics')
+          .select('*')
+          .eq('project_id', id)
+          .maybeSingle();
+        if (updatedProj) {
+          setActiveProject(updatedProj);
+        }
+      }
+      fetchDashboardData();
+    }
+  };
+
+  const handleUpdateTeam = async (e) => {
+    e.preventDefault();
+    if (!editingElement) return;
+    const id = editingElement.data.id;
+
+    const { error } = await supabase
+      .from('teams')
+      .update({
+        name: editName,
+        company_id: editCompanyId || null
+      })
+      .eq('id', id);
+
+    if (error) {
+      showToast('Erro ao atualizar equipe: ' + error.message, 'danger');
+    } else {
+      showToast('Equipe atualizada com sucesso!');
+      setEditingElement(null);
+      fetchDashboardData();
+    }
+  };
+
+  const handleUpdateTechnician = async (e) => {
+    e.preventDefault();
+    if (!editingElement) return;
+    const id = editingElement.data.id;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: editName,
+        telegram_chat_id: editTelegram,
+        company_id: editCompanyId || null
+      })
+      .eq('id', id);
+
+    if (error) {
+      showToast('Erro ao atualizar técnico: ' + error.message, 'danger');
+    } else {
+      showToast('Técnico atualizado com sucesso!');
+      setEditingElement(null);
+      fetchDashboardData();
+    }
+  };
+
+  const handleUpdateCompany = async (e) => {
+    e.preventDefault();
+    if (!editingElement) return;
+    const id = editingElement.data.id;
+
+    const { error } = await supabase
+      .from('companies')
+      .update({
+        name: editName,
+        cnpj: editCnpj || null
+      })
+      .eq('id', id);
+
+    if (error) {
+      showToast('Erro ao atualizar empresa: ' + error.message, 'danger');
+    } else {
+      showToast('Empresa atualizada com sucesso!');
+      setEditingElement(null);
+      fetchDashboardData();
+    }
+  };
+
+
+  const renderEditModal = () => {
+    if (!editingElement) return null;
+
+    const { type, data } = editingElement;
+
+    return (
+      <div className="modal-overlay" onClick={() => setEditingElement(null)}>
+        <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3 style={{ margin: 0 }}>
+              {type === 'project' && 'Editar Obra'}
+              {type === 'team' && 'Editar Equipe'}
+              {type === 'tech' && 'Editar Técnico'}
+              {type === 'company' && 'Editar Empresa'}
+            </h3>
+            <button 
+              onClick={() => setEditingElement(null)} 
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          {type === 'project' && (
+            <form onSubmit={handleUpdateProject} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Identificação / Nome da Obra</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
+              </div>
+              <div>
+                <label>Modelo do Elevador</label>
+                <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)} required />
+              </div>
+              <div>
+                <label>Empresa Contratada Proprietária</label>
+                <select value={editCompanyId} onChange={e => setEditCompanyId(e.target.value)} required>
+                  <option value="">-- Selecione a Empresa Contratada --</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Equipe de Instalação Responsável</label>
+                <select value={editTeamId} onChange={e => setEditTeamId(e.target.value)}>
+                  <option value="">-- Sem Equipe --</option>
+                  {teams.map(t => (
+                    <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Gestor Técnico Responsável (Obra)</label>
+                <select value={editManagerId} onChange={e => setEditManagerId(e.target.value)}>
+                  <option value="">-- Sem Gestor --</option>
+                  {managers.map(m => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Data de Início</label>
+                <input type="date" value={editStartDate} onChange={e => setEditStartDate(e.target.value)} required />
+              </div>
+              <div>
+                <label>Prazo Limite para Conclusão</label>
+                <input type="date" value={editDeadlineDate} onChange={e => setEditDeadlineDate(e.target.value)} required />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar Alterações</button>
+                <button type="button" onClick={() => setEditingElement(null)} className="btn btn-secondary">Cancelar</button>
+              </div>
+            </form>
+          )}
+
+          {type === 'team' && (
+            <form onSubmit={handleUpdateTeam} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Nome da Equipe</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
+              </div>
+              <div>
+                <label>Empresa Vinculada</label>
+                <select value={editCompanyId} onChange={e => setEditCompanyId(e.target.value)} required>
+                  <option value="">-- Selecione a Empresa --</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar Alterações</button>
+                <button type="button" onClick={() => setEditingElement(null)} className="btn btn-secondary">Cancelar</button>
+              </div>
+            </form>
+          )}
+
+          {type === 'tech' && (
+            <form onSubmit={handleUpdateTechnician} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Nome Completo do Técnico</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
+              </div>
+              <div>
+                <label>Telegram Chat ID</label>
+                <input type="text" value={editTelegram} onChange={e => setEditTelegram(e.target.value)} required />
+              </div>
+              <div>
+                <label>Empresa do Técnico (Opcional)</label>
+                <select value={editCompanyId} onChange={e => setEditCompanyId(e.target.value)}>
+                  <option value="">-- Sem Empresa --</option>
+                  {companies.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar Alterações</button>
+                <button type="button" onClick={() => setEditingElement(null)} className="btn btn-secondary">Cancelar</button>
+              </div>
+            </form>
+          )}
+
+          {type === 'company' && (
+            <form onSubmit={handleUpdateCompany} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label>Nome da Empresa</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
+              </div>
+              <div>
+                <label>CNPJ (Opcional)</label>
+                <input type="text" value={editCnpj} onChange={e => setEditCnpj(e.target.value)} />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar Alterações</button>
+                <button type="button" onClick={() => setEditingElement(null)} className="btn btn-secondary">Cancelar</button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const getProgressColorClass = (percent) => {
     if (percent === 100) return 'bg-progress-p100 progress-p100';
     if (percent === 75) return 'bg-progress-p75 progress-p75';
@@ -884,13 +1221,29 @@ export default function App() {
                       </div>
                     </div>
 
-                    <button 
-                      onClick={() => { setActiveProject(proj); fetchProjectPhases(proj.project_id); fetchProjectAuditLogs(proj.project_id); }} 
-                      className="btn btn-primary" style={{ width: '100%', padding: '10px 16px', fontSize: '0.85rem' }}
-                    >
-                      Acompanhar Fases
-                      <ChevronRight size={16} />
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <button 
+                        onClick={() => { setActiveProject(proj); fetchProjectPhases(proj.project_id); fetchProjectAuditLogs(proj.project_id); }} 
+                        className="btn btn-primary" style={{ width: '100%', padding: '10px 16px', fontSize: '0.85rem' }}
+                      >
+                        Acompanhar Fases
+                        <ChevronRight size={16} />
+                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => startEdit('project', proj)} 
+                          className="btn btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}
+                        >
+                          Editar
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteProject(proj.project_id)} 
+                          className="btn btn-danger" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
@@ -905,9 +1258,25 @@ export default function App() {
                   <p style={{ color: '#94a3b8' }}>Nenhuma equipe cadastrada.</p>
                 ) : (
                   teams.map(t => (
-                    <div key={t.id} className="glass-panel" style={{ padding: '20px' }}>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Empresa Parceira: {t.companies?.name || 'Não associada'}</p>
+                    <div key={t.id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
+                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Empresa Parceira: {t.companies?.name || 'Não associada'}</p>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                        <button 
+                          onClick={() => startEdit('team', t)} 
+                          className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                        >
+                          Editar
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTeam(t.id)} 
+                          className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
                   ))
                 )}
@@ -924,13 +1293,29 @@ export default function App() {
                     <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Nenhum técnico cadastrado ainda.</p>
                   ) : (
                     technicians.map(tech => (
-                      <div key={tech.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4' }}>
-                          <HardHat size={16} />
+                      <div key={tech.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4' }}>
+                            <HardHat size={16} />
+                          </div>
+                          <div>
+                            <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{tech.full_name}</p>
+                            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Telegram Chat ID: <code>{tech.telegram_chat_id}</code></p>
+                          </div>
                         </div>
-                        <div>
-                          <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{tech.full_name}</p>
-                          <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Telegram Chat ID: <code>{tech.telegram_chat_id}</code></p>
+                        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px' }}>
+                          <button 
+                            onClick={() => startEdit('tech', tech)} 
+                            className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem' }}
+                          >
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTechnician(tech.id)} 
+                            className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem' }}
+                          >
+                            Excluir
+                          </button>
                         </div>
                       </div>
                     ))
@@ -947,11 +1332,27 @@ export default function App() {
                 <p style={{ color: '#94a3b8' }}>Nenhuma empresa parceira cadastrada.</p>
               ) : (
                 companies.map(c => (
-                  <div key={c.id} className="glass-panel" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Building style={{ color: '#06b6d4' }} />
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{c.name}</h4>
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>CNPJ: {c.cnpj || 'Não informado'}</p>
+                  <div key={c.id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <Building style={{ color: '#06b6d4' }} />
+                      <div>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{c.name}</h4>
+                        <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>CNPJ: {c.cnpj || 'Não informado'}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                      <button 
+                        onClick={() => startEdit('company', c)} 
+                        className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                      >
+                        Editar
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteCompany(c.id)} 
+                        className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                      >
+                        Excluir
+                      </button>
                     </div>
                   </div>
                 ))
@@ -1253,6 +1654,7 @@ export default function App() {
 
         </main>
       )}
+      {renderEditModal()}
     </div>
   );
 }

@@ -209,3 +209,34 @@ label {
 .bg-progress-p50 { background-color: rgba(2, 132, 199, 0.15); border-color: rgba(2, 132, 199, 0.3); }
 .bg-progress-p75 { background-color: rgba(79, 70, 229, 0.15); border-color: rgba(79, 70, 229, 0.3); }
 .bg-progress-p100 { background-color: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); }
+
+/* Modal overlay & content */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(4, 6, 10, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid var(--border-color-active);
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.7), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
