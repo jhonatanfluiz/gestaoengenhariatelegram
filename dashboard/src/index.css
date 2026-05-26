@@ -251,12 +251,46 @@ label {
     color: #0d1117 !important;
     font-family: system-ui, -apple-system, sans-serif;
   }
-  header, nav, button, .btn, .modal-overlay, select, input, .no-print, .modal-content button, .modal-content select {
+  header, nav, button, .btn, select, input, .no-print, .modal-content button, .modal-content select {
     display: none !important;
   }
   .print-only {
     display: block !important;
   }
+  
+  /* Modal Printing configurations */
+  body.printing-modal #root > div > *:not(.modal-overlay) {
+    display: none !important;
+  }
+  body:not(.printing-modal) .modal-overlay {
+    display: none !important;
+  }
+  body.printing-modal .modal-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: auto !important;
+  }
+  body.printing-modal .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
   .glass-panel {
     background: #ffffff !important;
     color: #0d1117 !important;

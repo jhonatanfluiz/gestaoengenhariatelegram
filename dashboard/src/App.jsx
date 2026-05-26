@@ -76,6 +76,7 @@ export default function App() {
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [tempGeminiKey, setTempGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [showKeyConfig, setShowKeyConfig] = useState(false);
 
   // Forms
   const [newProjName, setNewProjName] = useState('');
@@ -108,6 +109,25 @@ export default function App() {
       setNewProjDeadline(start.toISOString().split('T')[0]);
     }
   }, [newProjStartDate]);
+
+  // Handle page printing body classes for modals
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      if (activeReportModal) {
+        document.body.classList.add('printing-modal');
+      }
+    };
+    const handleAfterPrint = () => {
+      document.body.classList.remove('printing-modal');
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [activeReportModal]);
 
   // Auth and PWA initialization
   useEffect(() => {
@@ -750,6 +770,7 @@ export default function App() {
     setReportLoading(true);
     setAiAnalysis('');
     setAiLoading(false);
+    setShowKeyConfig(false);
     
     try {
       const relatedProjects = projects.filter(p => 
@@ -873,7 +894,9 @@ export default function App() {
   };
 
   const handleGenerateAIReport = async () => {
-    const key = tempGeminiKey || localStorage.getItem('gemini_api_key');
+    const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const localKey = localStorage.getItem('gemini_api_key');
+    const key = tempGeminiKey || localKey || envKey;
     if (!key) {
       showToast('Por favor, configure sua chave da API do Gemini.', 'danger');
       return;
@@ -958,8 +981,9 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
       setAiAnalysis(text);
       
       // Save key if it worked
-      if (tempGeminiKey) {
+      if (tempGeminiKey && tempGeminiKey.trim()) {
         localStorage.setItem('gemini_api_key', tempGeminiKey);
+        setShowKeyConfig(false);
       }
     } catch (e) {
       console.error(e);
@@ -1252,41 +1276,71 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
                         Análise de Produtividade por IA
                       </h4>
                       
-                      {localStorage.getItem('gemini_api_key') || tempGeminiKey ? (
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {(localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) && (
+                          <button 
+                            onClick={handleGenerateAIReport}
+                            disabled={aiLoading}
+                            className="btn btn-primary"
+                            style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <RefreshCw size={12} className={aiLoading ? 'animate-spin' : ''} />
+                            {aiAnalysis ? 'Atualizar Análise' : 'Gerar Análise'}
+                          </button>
+                        )}
                         <button 
-                          onClick={handleGenerateAIReport}
-                          disabled={aiLoading}
-                          className="btn btn-primary"
-                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          onClick={() => setShowKeyConfig(!showKeyConfig)}
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 8px', fontSize: '0.7rem' }}
                         >
-                          <RefreshCw size={12} className={aiLoading ? 'animate-spin' : ''} />
-                          {aiAnalysis ? 'Atualizar Análise' : 'Gerar Análise'}
+                          {showKeyConfig ? 'Ocultar Config' : 'Chave API'}
                         </button>
-                      ) : null}
+                      </div>
                     </div>
 
-                    {/* Gemini Key Config if missing */}
-                    {!(localStorage.getItem('gemini_api_key') || tempGeminiKey) && (
-                      <div style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#f59e0b' }}>
-                          ⚠️ A chave API do Gemini não está configurada no seu ambiente. 
-                          Insira sua chave gratuita do Gemini abaixo para habilitar a análise automática de gargalos.
+                    {/* Gemini Key Config Form */}
+                    {(!(localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) || showKeyConfig) && (
+                      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+                          Para ativar a análise de IA, insira sua chave gratuita do Gemini (gerada no Google AI Studio). A chave será salva localmente e com segurança em seu navegador.
                         </p>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <input 
                             type="password"
-                            placeholder="Cole sua Gemini API Key aqui"
+                            placeholder={localStorage.getItem('gemini_api_key') ? '••••••••••••••••' : 'Cole sua Gemini API Key aqui'}
                             value={tempGeminiKey}
                             onChange={e => setTempGeminiKey(e.target.value)}
                             style={{ flex: 1, padding: '6px 10px', fontSize: '0.8rem', background: 'rgba(15,23,42,0.8)', border: '1px solid var(--border-color)', color: '#ffffff', borderRadius: '4px' }}
                           />
                           <button 
-                            onClick={handleGenerateAIReport}
+                            onClick={() => {
+                              if (tempGeminiKey.trim()) {
+                                localStorage.setItem('gemini_api_key', tempGeminiKey);
+                                showToast('Chave salva com sucesso!');
+                                setShowKeyConfig(false);
+                              } else {
+                                showToast('Por favor, digite uma chave válida.', 'danger');
+                              }
+                            }}
                             className="btn btn-primary"
                             style={{ padding: '6px 12px', fontSize: '0.8rem' }}
                           >
-                            Salvar e Gerar
+                            Salvar Chave
                           </button>
+                          {localStorage.getItem('gemini_api_key') && (
+                            <button 
+                              onClick={() => {
+                                localStorage.removeItem('gemini_api_key');
+                                setTempGeminiKey('');
+                                showToast('Chave removida.');
+                                setShowKeyConfig(true);
+                              }}
+                              className="btn btn-danger"
+                              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                            >
+                              Limpar
+                            </button>
+                          )}
                         </div>
                         <a 
                           href="https://aistudio.google.com/" 
@@ -1757,7 +1811,7 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
       )}
 
       {/* Header */}
-      <header className="glass-panel" style={{ margin: '16px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '12px' }}>
+      <header className="glass-panel no-print" style={{ margin: '16px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Activity style={{ color: '#06b6d4' }} size={28} />
           <div>
@@ -1774,7 +1828,7 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
       {/* Detailed Project View */}
       {activeProject ? (
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} className="no-print">
             <button onClick={() => { setActiveProject(null); fetchDashboardData(); }} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
               <ArrowLeft size={16} />
               Voltar para Obras
@@ -1788,7 +1842,7 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
           </div>
 
           {/* Project details panel */}
-          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="glass-panel no-print" style={{ padding: '24px', display: 'flex', flexWrap: 'wrap', gap: '24px', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ flex: 1, minWidth: '280px' }}>
               <h1 style={{ fontSize: '1.8rem', margin: '0 0 8px' }}>{activeProject.project_name}</h1>
               <p style={{ color: '#94a3b8', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1975,7 +2029,7 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Main Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflowX: 'auto' }} className="no-print">
             {[
               { id: 'projects', label: 'Obras Comerciais' },
               { id: 'teams', label: 'Equipes & Equipe' },
