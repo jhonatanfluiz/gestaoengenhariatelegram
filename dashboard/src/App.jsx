@@ -97,6 +97,41 @@ export default function App() {
     });
   };
 
+  const [rankingMonthFilter, setRankingMonthFilter] = useState('all');
+
+  const getProjectLinearEstimate = (proj) => {
+    if (!proj) return { text: 'Aguardando progresso...', daysRemaining: 0, date: null, isDelayed: false };
+    
+    const progress = proj.overall_progress_percent || 0;
+    const elapsed = proj.days_elapsed || 0;
+    
+    if (progress > 0) {
+      if (progress === 100) {
+        return { text: 'Concluída', daysRemaining: 0, date: null, isDelayed: false };
+      }
+      const dailyRate = progress / Math.max(1, elapsed);
+      const totalEstimatedDays = Math.round(100 / dailyRate);
+      const daysRemaining = Math.max(0, totalEstimatedDays - elapsed);
+      
+      const startDateObj = new Date(proj.start_date);
+      startDateObj.setDate(startDateObj.getDate() + totalEstimatedDays);
+      
+      const deadlineDateObj = new Date(proj.deadline_date);
+      const isDelayed = startDateObj > deadlineDateObj;
+      
+      return {
+        text: `${startDateObj.toLocaleDateString()} (~${daysRemaining} dias adicionais)`,
+        daysRemaining,
+        date: startDateObj,
+        isDelayed
+      };
+    } else if (elapsed > 0) {
+      return { text: 'Nenhum avanço registrado', daysRemaining: 0, date: null, isDelayed: false };
+    } else {
+      return { text: 'Aguardando início', daysRemaining: 0, date: null, isDelayed: false };
+    }
+  };
+
   // Forms
   const [newProjName, setNewProjName] = useState('');
   const [newProjModel, setNewProjModel] = useState('');
@@ -1189,36 +1224,10 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
     const notStartedPhases = projectPhases.filter(p => !p.started);
     
     // Calculo da Estimativa Linear
-    let linearEstimateText = 'Aguardando progresso...';
-    let linearEstimateDaysRemaining = 0;
-    let isLinearDelayed = false;
+    const linearEst = getProjectLinearEstimate(activeProject);
+    const linearEstimateText = linearEst.text;
+    const isLinearDelayed = linearEst.isDelayed;
 
-    const progress = activeProject.overall_progress_percent || 0;
-    const elapsed = activeProject.days_elapsed || 0;
-    
-    if (progress > 0) {
-      if (progress === 100) {
-        linearEstimateText = 'Concluída';
-      } else {
-        const dailyRate = progress / Math.max(1, elapsed);
-        const totalEstimatedDays = Math.round(100 / dailyRate);
-        linearEstimateDaysRemaining = Math.max(0, totalEstimatedDays - elapsed);
-        
-        // Calculate date
-        const startDateObj = new Date(activeProject.start_date);
-        startDateObj.setDate(startDateObj.getDate() + totalEstimatedDays);
-        
-        // Check if projected date is past deadline
-        const deadlineDateObj = new Date(activeProject.deadline_date);
-        isLinearDelayed = startDateObj > deadlineDateObj;
-        
-        linearEstimateText = `${startDateObj.toLocaleDateString()} (~${linearEstimateDaysRemaining} dias adicionais)`;
-      }
-    } else if (elapsed > 0) {
-      linearEstimateText = 'Nenhum avanço registrado';
-    } else {
-      linearEstimateText = 'Aguardando início';
-    }
 
     return (
       <div className="glass-panel animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -2605,42 +2614,143 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
           )}
 
           {/* Pending Rankings tab */}
-          {activeTab === 'ranking' && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
-              <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertTriangle size={20} style={{ color: '#f59e0b' }} />
-                Ranking de Pendências (Fases Incompletas)
-              </h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px' }}>
-                Obras ordenadas pelo volume de pendências e fases não iniciadas.
-              </p>
+          {activeTab === 'ranking' && (() => {
+            // Extract available completion months
+            const availableMonths = [];
+            projects.forEach(p => {
+              const est = getProjectLinearEstimate(p);
+              if (est.date) {
+                const monthIndex = est.date.getMonth(); // 0-11
+                const year = est.date.getFullYear();
+                const label = est.date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1);
+                
+                if (!availableMonths.some(m => m.month === monthIndex && m.year === year)) {
+                  availableMonths.push({
+                    value: `${monthIndex}-${year}`,
+                    label: capitalizedLabel,
+                    month: monthIndex,
+                    year
+                  });
+                }
+              }
+            });
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {pendingRankings.length === 0 ? (
-                  <p style={{ color: '#94a3b8' }}>Nenhuma pendência pendente nas obras ativas!</p>
-                ) : (
-                  pendingRankings.map((rank, idx) => (
-                    <div key={rank.project_id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>{idx + 1}</span>
-                          {rank.project_name}
-                        </h4>
-                        <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
-                          <span style={{ color: '#ef4444' }}>{rank.not_started_phases_count} Não Iniciadas</span>
-                          <span style={{ color: '#f59e0b' }}>{rank.in_progress_phases_count} Em Progresso</span>
+            // Sort months chronologically
+            availableMonths.sort((a, b) => {
+              if (a.year !== b.year) return a.year - b.year;
+              return a.month - b.month;
+            });
+
+            // Filter rankings
+            const filteredRankings = pendingRankings.filter(rank => {
+              if (rankingMonthFilter === 'all') return true;
+              
+              const proj = projects.find(p => p.project_id === rank.project_id);
+              if (!proj) return false;
+              
+              const est = getProjectLinearEstimate(proj);
+              if (!est.date) return false;
+              
+              const monthYearKey = `${est.date.getMonth()}-${est.date.getFullYear()}`;
+              return monthYearKey === rankingMonthFilter;
+            });
+
+            // Sort rankings by total pending phases descending
+            const sortedRankings = [...filteredRankings].sort((a, b) => {
+              const aTotal = (a.not_started_phases_count || 0) + (a.in_progress_phases_count || 0);
+              const bTotal = (b.not_started_phases_count || 0) + (b.in_progress_phases_count || 0);
+              return bTotal - aTotal;
+            });
+
+            return (
+              <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+                <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertTriangle size={20} style={{ color: '#f59e0b' }} />
+                  Ranking de Pendências (Fases Incompletas)
+                </h3>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }} className="no-print">
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
+                    Obras ordenadas pelo volume de pendências e fases não iniciadas.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Filtrar Conclusão por Mês:</span>
+                    <select
+                      className="form-control"
+                      style={{ fontSize: '0.8rem', padding: '4px 12px', width: 'auto', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', height: 'auto' }}
+                      value={rankingMonthFilter}
+                      onChange={e => setRankingMonthFilter(e.target.value)}
+                    >
+                      <option value="all">Todos os Meses</option>
+                      {availableMonths.map(m => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {sortedRankings.length === 0 ? (
+                    <p style={{ color: '#94a3b8' }}>Nenhuma pendência encontrada para o filtro selecionado!</p>
+                  ) : (
+                    sortedRankings.map((rank, idx) => {
+                      const proj = projects.find(p => p.project_id === rank.project_id);
+                      const linearEst = proj ? getProjectLinearEstimate(proj) : null;
+                      const aiEst = projectForecast[rank.project_id];
+
+                      return (
+                        <div key={rank.project_id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>{idx + 1}</span>
+                              {rank.project_name}
+                            </h4>
+                            <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
+                              <span style={{ color: '#ef4444' }}>{rank.not_started_phases_count} Não Iniciadas</span>
+                              <span style={{ color: '#f59e0b' }}>{rank.in_progress_phases_count} Em Progresso</span>
+                            </div>
+                          </div>
+                          
+                          <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8' }}>
+                            <strong>Fases Pendentes:</strong> {rank.pending_phases_list || 'Nenhuma'}
+                          </div>
+
+                          {/* Completion Estimates Panel inside the ranking card */}
+                          {proj && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginTop: '4px', background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+                              <div>
+                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Previsão Linear (Automática)</span>
+                                <strong style={{ fontSize: '0.8rem', color: linearEst.isDelayed ? '#ef4444' : '#10b981' }}>
+                                  {linearEst.text}
+                                </strong>
+                              </div>
+                              <div>
+                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Brain size={12} style={{ color: '#06b6d4' }} /> Previsão Refinada (IA Gemini)
+                                </span>
+                                <div style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
+                                  {aiEst ? (
+                                    <div style={{ maxHeight: '80px', overflowY: 'auto', background: 'rgba(0,0,0,0.1)', padding: '6px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                                      {renderMarkdown(aiEst)}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: '#64748b', fontSize: '0.75rem' }}>
+                                      Estimativa de IA ainda não calculada. (Calcule na aba "Relatório Técnico" da obra).
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      
-                      <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8' }}>
-                        <strong>Fases Pendentes:</strong> {rank.pending_phases_list || 'Nenhuma'}
-                      </div>
-                    </div>
-                  ))
-                )}
+                      );
+                    })
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Audit Logs tab */}
           {activeTab === 'history' && (
