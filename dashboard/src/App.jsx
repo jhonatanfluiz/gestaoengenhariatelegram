@@ -1516,6 +1516,7 @@ Assistente IA:`;
     const linearEst = getProjectLinearEstimate(activeProject);
     const linearEstimateText = linearEst.text;
     const isLinearDelayed = linearEst.isDelayed;
+    const progress = activeProject.overall_progress_percent || 0;
 
 
     return (
