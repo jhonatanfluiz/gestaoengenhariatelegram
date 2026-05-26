@@ -1202,12 +1202,35 @@ export default function App() {
                         <Users size={14} /> Equipe: {proj.team_name || 'Sem equipe'}
                       </p>
                       
-                      {/* Progress bar */}
-                      <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ flex: 1, height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${proj.overall_progress_percent}%`, height: '100%', backgroundColor: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4', borderRadius: '3px' }}></div>
+                      {/* Progress Metrics (Realizado vs Esperado) */}
+                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {/* Realizado */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                            <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <CheckCircle size={12} style={{ color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }} />
+                              Realizado:
+                            </span>
+                            <span style={{ fontWeight: 700, color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }}>{proj.overall_progress_percent}%</span>
+                          </div>
+                          <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${proj.overall_progress_percent}%`, height: '100%', backgroundColor: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4', borderRadius: '3px' }}></div>
+                          </div>
                         </div>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }}>{proj.overall_progress_percent}%</span>
+
+                        {/* Esperado (Linear) */}
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                            <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <TrendingUp size={12} style={{ color: '#f59e0b' }} />
+                              Esperado (Linear):
+                            </span>
+                            <span style={{ fontWeight: 700, color: '#f59e0b' }}>{proj.expected_linear_progress}%</span>
+                          </div>
+                          <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${proj.expected_linear_progress}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }}></div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* Deadlines */}
