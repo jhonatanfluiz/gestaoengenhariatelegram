@@ -51,6 +51,7 @@ export default function App() {
   const [editCompanyId, setEditCompanyId] = useState('');
   const [editTeamId, setEditTeamId] = useState('');
   const [editManagerId, setEditManagerId] = useState('');
+  const [editTechId, setEditTechId] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editDeadlineDate, setEditDeadlineDate] = useState('');
   const [editTelegram, setEditTelegram] = useState('');
@@ -68,6 +69,7 @@ export default function App() {
   const [newProjCompanyId, setNewProjCompanyId] = useState('');
   const [newProjTeamId, setNewProjTeamId] = useState('');
   const [newProjManagerId, setNewProjManagerId] = useState('');
+  const [newProjTechId, setNewProjTechId] = useState('');
   const [newProjStartDate, setNewProjStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [newProjDeadline, setNewProjDeadline] = useState('');
 
@@ -369,6 +371,7 @@ export default function App() {
         company_id: newProjCompanyId,
         team_id: newProjTeamId || null,
         assigned_manager_id: newProjManagerId || null,
+        assigned_technician_id: newProjTechId || null,
         start_date: newProjStartDate,
         deadline_date: newProjDeadline
       })
@@ -384,6 +387,7 @@ export default function App() {
       setNewProjCompanyId('');
       setNewProjTeamId('');
       setNewProjManagerId('');
+      setNewProjTechId('');
       setActiveTab('projects');
       fetchDashboardData();
     }
@@ -525,6 +529,7 @@ export default function App() {
       setEditCompanyId(item.company_id || '');
       setEditTeamId(item.team_id || '');
       setEditManagerId(item.assigned_manager_id || '');
+      setEditTechId(item.assigned_technician_id || '');
       setEditStartDate(item.start_date || '');
       setEditDeadlineDate(item.deadline_date || '');
     } else if (type === 'team') {
@@ -602,6 +607,7 @@ export default function App() {
         company_id: editCompanyId || null,
         team_id: editTeamId || null,
         assigned_manager_id: editManagerId || null,
+        assigned_technician_id: editTechId || null,
         start_date: editStartDate,
         deadline_date: editDeadlineDate
       })
@@ -752,6 +758,19 @@ export default function App() {
                   <option value="">-- Sem Gestor --</option>
                   {managers.map(m => (
                     <option key={m.id} value={m.id}>{m.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Técnico Responsável (Confirmação de Fases)</label>
+                <select 
+                  value={editTechId} 
+                  onChange={e => setEditTechId(e.target.value)}
+                  disabled={!editCompanyId}
+                >
+                  <option value="">{editCompanyId ? '-- Sem Técnico --' : '-- Selecione a Empresa Contratada Primeiro --'}</option>
+                  {technicians.filter(t => t.company_id === editCompanyId).map(t => (
+                    <option key={t.id} value={t.id}>{t.full_name}</option>
                   ))}
                 </select>
               </div>
@@ -1111,7 +1130,7 @@ export default function App() {
                 <Building size={16} /> Empresa Contratada: {activeProject.company_name || 'Sem empresa'} | Modelo: {activeProject.elevator_model}
               </p>
               <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Briefcase size={16} /> Equipe de Campo: {activeProject.team_name || 'Sem equipe'} | Gestor: {activeProject.manager_name || 'Sem gestor'}
+                <Briefcase size={16} /> Equipe de Campo: {activeProject.team_name || 'Sem equipe'} | Técnico: {activeProject.technician_name || 'Sem técnico'} | Gestor: {activeProject.manager_name || 'Sem gestor'}
               </p>
             </div>
 
@@ -1282,6 +1301,9 @@ export default function App() {
                       </p>
                       <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                         <Users size={14} /> Equipe: {proj.team_name || 'Sem equipe'}
+                      </p>
+                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                        <HardHat size={14} style={{ color: '#06b6d4' }} /> Técnico Responsável: {proj.technician_name || 'Não definido'}
                       </p>
                       
                       {/* Progress Metrics (Realizado vs Esperado) */}
@@ -1684,6 +1706,19 @@ export default function App() {
                       <option value="">-- Selecione o Gestor --</option>
                       {managers.map(m => (
                         <option key={m.id} value={m.id}>{m.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Técnico Responsável (Confirmação de Fases)</label>
+                    <select 
+                      value={newProjTechId} 
+                      onChange={e => setNewProjTechId(e.target.value)}
+                      disabled={!newProjCompanyId}
+                    >
+                      <option value="">{newProjCompanyId ? '-- Selecione o Técnico --' : '-- Selecione a Empresa Contratada Primeiro --'}</option>
+                      {technicians.filter(t => t.company_id === newProjCompanyId).map(t => (
+                        <option key={t.id} value={t.id}>{t.full_name}</option>
                       ))}
                     </select>
                   </div>

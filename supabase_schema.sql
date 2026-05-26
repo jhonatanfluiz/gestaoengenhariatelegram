@@ -69,6 +69,7 @@ CREATE TABLE public.projects (
     company_id UUID REFERENCES public.companies(id) ON DELETE SET NULL,
     team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
     assigned_manager_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    assigned_technician_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     name TEXT NOT NULL,
     elevator_model TEXT NOT NULL,
     start_date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -215,12 +216,18 @@ SELECT
     c.name AS company_name,
     t.name AS team_name,
     mgr.full_name AS manager_name,
-    proj.elevator_model
+    tech.full_name AS technician_name,
+    proj.elevator_model,
+    proj.assigned_technician_id,
+    proj.company_id,
+    proj.team_id,
+    proj.assigned_manager_id
 FROM public.vw_project_metrics pm
 JOIN public.projects proj ON pm.project_id = proj.id
 LEFT JOIN public.companies c ON proj.company_id = c.id
 LEFT JOIN public.teams t ON proj.team_id = t.id
-LEFT JOIN public.profiles mgr ON proj.assigned_manager_id = mgr.id;
+LEFT JOIN public.profiles mgr ON proj.assigned_manager_id = mgr.id
+LEFT JOIN public.profiles tech ON proj.assigned_technician_id = tech.id;
 
 -- View de Pendências e Ranking de Atrasos
 CREATE OR REPLACE VIEW public.vw_pending_ranking AS
