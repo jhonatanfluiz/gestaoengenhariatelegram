@@ -83,7 +83,8 @@ CREATE TABLE public.phases (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     phase_number INT UNIQUE NOT NULL CHECK (phase_number >= 1 AND phase_number <= 20),
     name TEXT NOT NULL,
-    description TEXT
+    description TEXT,
+    weight INT DEFAULT 5
 );
 
 -- Tabela de Progresso Real das Fases por Projeto
@@ -134,28 +135,31 @@ CREATE TABLE public.bot_sessions (
 -- =====================================================================
 -- 2. POPULAR AS 20 FASES PADRÃO DE MONTAGEM DE ELEVADORES
 -- =====================================================================
-INSERT INTO public.phases (phase_number, name, description) VALUES
-(1, 'Mobilização da equipe', 'Chegada de equipe, EPIs, e ferramentas na obra.'),
-(2, 'Conferência da prumada', 'Verificação das dimensões e alinhamento do poço.'),
-(3, 'Liberação do poço', 'Inspeção física, limpeza e checagem de infiltrações no fundo do poço.'),
-(4, 'Instalação de andaimes e proteção', 'Montagem das estruturas auxiliares de segurança no poço.'),
-(5, 'Instalação das guias da cabine', 'Montagem e fixação dos trilhos que guiarão a cabine.'),
-(6, 'Instalação das guias do contrapeso', 'Montagem e fixação dos trilhos que guiarão o contrapeso.'),
-(7, 'Montagem da máquina de tração', 'Fixação do motor de tração no topo do poço ou casa de máquinas.'),
-(8, 'Instalação da base da máquina', 'Montagem da base metálica/apoios que sustentam a máquina.'),
-(9, 'Instalação do limitador de velocidade', 'Fixação do sistema mecânico de segurança contra queda livre.'),
-(10, 'Instalação do quadro de comando', 'Fixação física do painel elétrico principal de controle.'),
-(11, 'Passagem de chicotes e cabeamentos', 'Instalação da fiação do poço, botoeiras e sensores.'),
-(12, 'Montagem da cabine', 'Montagem do piso, teto, e painéis de parede da cabine do elevador.'),
-(13, 'Montagem do contrapeso', 'Montagem do chassi e preenchimento com blocos de peso.'),
-(14, 'Instalação das portas de pavimento', 'Fixação das portas automáticas em cada um dos andares.'),
-(15, 'Instalação das botoeiras e sinalizações', 'Montagem dos painéis de chamada externos e displays.'),
-(16, 'Instalação do operador de portas', 'Acoplamento do motor que abre a porta na cabine.'),
-(17, 'Ajustes elétricos e parametrizações', 'Configuração inicial do inversor e lógica do quadro.'),
-(18, 'Testes operacionais', 'Movimentação do elevador em velocidade reduzida de inspeção.'),
-(19, 'Ajustes finais e acabamento', 'Polimento de guias, ajustes de nivelamento e barulho.'),
-(20, 'Entrega técnica ao cliente', 'Realização de testes de segurança finais e liberação para uso comercial.')
-ON CONFLICT (phase_number) DO NOTHING;
+INSERT INTO public.phases (phase_number, name, description, weight) VALUES
+(1, 'Mobilização da equipe', 'Chegada de equipe, EPIs, e ferramentas na obra.', 2),
+(2, 'Conferência da prumada', 'Verificação das dimensões e alinhamento do poço.', 3),
+(3, 'Liberação do poço', 'Inspeção física, limpeza e checagem de infiltrações no fundo do poço.', 3),
+(4, 'Instalação de andaimes e proteção', 'Montagem das estruturas auxiliares de segurança no poço.', 4),
+(5, 'Instalação das guias da cabine', 'Montagem e fixação dos trilhos que guiarão a cabine.', 8),
+(6, 'Instalação das guias do contrapeso', 'Montagem e fixação dos trilhos que guiarão o contrapeso.', 6),
+(7, 'Montagem da máquina de tração', 'Fixação do motor de tração no topo do poço ou casa de máquinas.', 10),
+(8, 'Instalação da base da máquina', 'Montagem da base metálica/apoios que sustentam a máquina.', 5),
+(9, 'Instalação do limitador de velocidade', 'Fixação do sistema mecânico de segurança contra queda livre.', 4),
+(10, 'Instalação do quadro de comando', 'Fixação física do painel elétrico principal de controle.', 6),
+(11, 'Passagem de chicotes e cabeamentos', 'Instalação da fiação do poço, botoeiras e sensores.', 8),
+(12, 'Montagem da cabine', 'Montagem do piso, teto, e painéis de parede da cabine do elevador.', 10),
+(13, 'Montagem do contrapeso', 'Montagem do chassi e preenchimento com blocos de peso.', 5),
+(14, 'Instalação das portas de pavimento', 'Fixação das portas automáticas em cada um dos andares.', 8),
+(15, 'Instalação das botoeiras e sinalizações', 'Montagem dos painéis de chamada externos e displays.', 3),
+(16, 'Instalação do operador de portas', 'Acoplamento do motor que abre a porta na cabine.', 4),
+(17, 'Ajustes elétricos e parametrizações', 'Configuração inicial do inversor e lógica do quadro.', 5),
+(18, 'Testes operacionais', 'Movimentação do elevador em velocidade reduzida de inspeção.', 3),
+(19, 'Ajustes finais e acabamento', 'Polimento de guias, ajustes de nivelamento e barulho.', 2),
+(20, 'Entrega técnica ao cliente', 'Realização de testes de segurança finais e liberação para uso comercial.', 1)
+ON CONFLICT (phase_number) DO UPDATE SET 
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    weight = EXCLUDED.weight;
 
 -- =====================================================================
 -- 3. ÍNDICES PARA ALTA PERFORMANCE
@@ -187,10 +191,11 @@ WITH project_calculations AS (
         GREATEST(0, CURRENT_DATE - p.start_date) AS days_elapsed,
         -- Dias restantes
         GREATEST(0, p.deadline_date - CURRENT_DATE) AS days_remaining,
-        -- Progresso real da obra (média do percentual de progresso das 20 fases)
-        COALESCE(ROUND(AVG(pp.progress_percent)), 0) AS overall_progress_percent
+        -- Cálculo ponderado do progresso real (PFP %)
+        COALESCE(ROUND(SUM((pp.progress_percent::decimal * ph.weight::decimal) / 100.0)), 0) AS overall_progress_percent
     FROM public.projects p
     LEFT JOIN public.project_phases_progress pp ON p.id = pp.project_id
+    LEFT JOIN public.phases ph ON pp.phase_id = ph.id
     GROUP BY p.id, p.name, p.start_date, p.deadline_date, p.status
 )
 SELECT 
