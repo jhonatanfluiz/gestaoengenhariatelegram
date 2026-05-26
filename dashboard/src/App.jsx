@@ -689,7 +689,7 @@ export default function App() {
             <div style={{ flex: 1, minWidth: '280px' }}>
               <h1 style={{ fontSize: '1.8rem', margin: '0 0 8px' }}>{activeProject.project_name}</h1>
               <p style={{ color: '#94a3b8', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Building size={16} /> Cliente: {activeProject.company_name || 'Sem empresa'} | Modelo: {activeProject.elevator_model}
+                <Building size={16} /> Empresa Contratada: {activeProject.company_name || 'Sem empresa'} | Modelo: {activeProject.elevator_model}
               </p>
               <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Briefcase size={16} /> Equipe de Campo: {activeProject.team_name || 'Sem equipe'} | Gestor: {activeProject.manager_name || 'Sem gestor'}
@@ -821,7 +821,7 @@ export default function App() {
             {[
               { id: 'projects', label: 'Obras Comerciais' },
               { id: 'teams', label: 'Equipes & Equipe' },
-              { id: 'companies', label: 'Clientes & Empresas' },
+              { id: 'companies', label: 'Empresas Contratadas' },
               { id: 'phases', label: 'Checklists & Fases' },
               { id: 's-curve', label: 'Curva S & Avanço' },
               { id: 'ranking', label: 'Ranking de Pendências' },
@@ -859,7 +859,7 @@ export default function App() {
                       </div>
                       
                       <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Building size={14} /> Cliente: {proj.company_name || 'Sem empresa'}
+                        <Building size={14} /> Empresa Contratada: {proj.company_name || 'Sem empresa'}
                       </p>
                       <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                         <Users size={14} /> Equipe: {proj.team_name || 'Sem equipe'}
@@ -1135,7 +1135,7 @@ export default function App() {
                   onClick={() => setRegSubTab('company')} 
                   style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'company' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'company' ? '2px solid #06b6d4' : 'none' }}
                 >
-                  Novo Cliente
+                  Nova Empresa Contratada
                 </button>
               </div>
 
@@ -1152,9 +1152,9 @@ export default function App() {
                     <input type="text" value={newProjModel} onChange={e => setNewProjModel(e.target.value)} required placeholder="Ex: Schindler 5500" />
                   </div>
                   <div>
-                    <label>Cliente / Empresa Proprietária</label>
+                    <label>Empresa Contratada Proprietária</label>
                     <select value={newProjCompanyId} onChange={e => setNewProjCompanyId(e.target.value)} required>
-                      <option value="">-- Selecione o Cliente --</option>
+                      <option value="">-- Selecione a Empresa Contratada --</option>
                       {companies.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
@@ -1236,7 +1236,7 @@ export default function App() {
 
               {regSubTab === 'company' && (
                 <form onSubmit={handleCreateCompany} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
-                  <h4 style={{ marginBottom: '8px' }}>Cadastrar Nova Empresa Cliente</h4>
+                  <h4 style={{ marginBottom: '8px' }}>Cadastrar Nova Empresa Contratada</h4>
                   <div>
                     <label>Nome da Empresa</label>
                     <input type="text" value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} required placeholder="Ex: Elevadores & Cia Ltda" />
@@ -1245,7 +1245,7 @@ export default function App() {
                     <label>CNPJ (Opcional)</label>
                     <input type="text" value={newCompanyCnpj} onChange={e => setNewCompanyCnpj(e.target.value)} placeholder="Ex: 00.000.000/0001-00" />
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Empresa</button>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Empresa Contratada</button>
                 </form>
               )}
             </div>
