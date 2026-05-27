@@ -52,6 +52,7 @@ export default function App() {
   const [editModel, setEditModel] = useState('');
   const [editCompanyId, setEditCompanyId] = useState('');
   const [editTeamId, setEditTeamId] = useState('');
+  const [editTeamManagerId, setEditTeamManagerId] = useState('');
   const [editManagerId, setEditManagerId] = useState('');
   const [editTechId, setEditTechId] = useState('');
   const [editNotificationFreq, setEditNotificationFreq] = useState('weekly');
@@ -179,6 +180,7 @@ export default function App() {
 
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamCompanyId, setNewTeamCompanyId] = useState('');
+  const [newTeamManagerId, setNewTeamManagerId] = useState('');
 
   const [newManagerName, setNewManagerName] = useState('');
   const [newManagerEmail, setNewManagerEmail] = useState('');
@@ -357,11 +359,11 @@ export default function App() {
     if (err2) console.error(err2);
     else setTechnicians(techs || []);
 
-    // 3. Fetch managers
+    // 3. Fetch managers and masters
     const { data: mgrs, error: err3 } = await supabase
       .from('profiles')
       .select('*')
-      .eq('role', 'manager')
+      .in('role', ['master', 'manager'])
       .order('full_name');
 
     if (err3) console.error(err3);
@@ -379,7 +381,7 @@ export default function App() {
     // 5. Fetch teams
     const { data: tms, error: err5 } = await supabase
       .from('teams')
-      .select('*, companies(name)')
+      .select('*, companies(name), profiles:assigned_manager_id(full_name)')
       .order('name');
 
     if (err5) console.error(err5);
@@ -627,7 +629,8 @@ export default function App() {
       .from('teams')
       .insert({
         name: newTeamName,
-        company_id: newTeamCompanyId
+        company_id: newTeamCompanyId,
+        assigned_manager_id: newTeamManagerId || null
       });
 
     if (error) showToast('Erro ao criar equipe: ' + error.message, 'danger');
@@ -635,6 +638,7 @@ export default function App() {
       showToast(`Equipe "${newTeamName}" criada!`);
       setNewTeamName('');
       setNewTeamCompanyId('');
+      setNewTeamManagerId('');
       setActiveTab('teams');
       fetchDashboardData();
     }
@@ -871,6 +875,7 @@ export default function App() {
     } else if (type === 'team') {
       setEditName(item.name || '');
       setEditCompanyId(item.company_id || '');
+      setEditTeamManagerId(item.assigned_manager_id || '');
     } else if (type === 'tech') {
       setEditName(item.full_name || '');
       setEditTelegram(item.telegram_chat_id || '');
@@ -1004,7 +1009,8 @@ export default function App() {
       .from('teams')
       .update({
         name: editName,
-        company_id: editCompanyId || null
+        company_id: editCompanyId || null,
+        assigned_manager_id: editTeamManagerId || null
       })
       .eq('id', id);
 
@@ -2192,7 +2198,7 @@ Assistente IA:`;
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h3 style={{ margin: 0 }}>
               {type === 'project' && 'Editar Obra'}
-              {type === 'team' && 'Editar Equipe'}
+              {type === 'team' && 'Editar Equipe Fixa'}
               {type === 'tech' && 'Editar Técnico'}
               {type === 'company' && 'Editar Empresa'}
             </h3>
@@ -2224,6 +2230,10 @@ Assistente IA:`;
                     const comp = companies.find(c => c.id === compId);
                     if (comp && comp.fixed_team_id) {
                       setEditTeamId(comp.fixed_team_id);
+                      const team = teams.find(t => t.id === comp.fixed_team_id);
+                      if (team && team.assigned_manager_id) {
+                        setEditManagerId(team.assigned_manager_id);
+                      }
                     } else {
                       setEditTeamId('');
                     }
@@ -2237,9 +2247,19 @@ Assistente IA:`;
                 </select>
               </div>
               <div>
-                <label>Equipe de Instalação Responsável</label>
-                <select value={editTeamId} onChange={e => setEditTeamId(e.target.value)}>
-                  <option value="">-- Sem Equipe --</option>
+                <label>Equipe Fixa Responsável</label>
+                <select 
+                  value={editTeamId} 
+                  onChange={e => {
+                    const teamId = e.target.value;
+                    setEditTeamId(teamId);
+                    const team = teams.find(t => t.id === teamId);
+                    if (team && team.assigned_manager_id) {
+                      setEditManagerId(team.assigned_manager_id);
+                    }
+                  }}
+                >
+                  <option value="">-- Sem Equipe Fixa --</option>
                   {teams.map(t => (
                     <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
                   ))}
@@ -2297,7 +2317,7 @@ Assistente IA:`;
           {type === 'team' && (
             <form onSubmit={handleUpdateTeam} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label>Nome da Equipe</label>
+                <label>Nome da Equipe Fixa</label>
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
               </div>
               <div>
@@ -2306,6 +2326,15 @@ Assistente IA:`;
                   <option value="">-- Selecione a Empresa --</option>
                   {companies.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Gestor Responsável Vinculado (Opcional)</label>
+                <select value={editTeamManagerId} onChange={e => setEditTeamManagerId(e.target.value)}>
+                  <option value="">-- Selecione o Gestor --</option>
+                  {managers.map(m => (
+                    <option key={m.id} value={m.id}>{m.full_name}</option>
                   ))}
                 </select>
               </div>
@@ -2837,7 +2866,7 @@ Assistente IA:`;
           <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflowX: 'auto' }} className="no-print">
             {[
               { id: 'projects', label: 'Obras Comerciais' },
-              { id: 'teams', label: 'Equipes & Equipe' },
+              { id: 'teams', label: 'Equipes Fixas & Técnicos' },
               { id: 'companies', label: 'Empresas Contratadas' },
               { id: 'phases', label: 'Checklists & Fases' },
               { id: 's-curve', label: 'Curva S & Avanço' },
@@ -2982,6 +3011,7 @@ Assistente IA:`;
                       <div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
                         <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Empresa Parceira: {t.companies?.name || 'Não associada'}</p>
+                        <p style={{ fontSize: '0.8rem', color: '#06b6d4', marginTop: '2px', fontWeight: 500 }}>Gestor Vinculado: {t.profiles?.full_name || 'Nenhum'}</p>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
                         <button 
@@ -3620,7 +3650,7 @@ Assistente IA:`;
                   onClick={() => setRegSubTab('team')} 
                   style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'team' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'team' ? '2px solid #06b6d4' : 'none' }}
                 >
-                  Nova Equipe
+                  Equipe Fixa
                 </button>
                 <button 
                   onClick={() => setRegSubTab('tech')} 
@@ -3666,6 +3696,10 @@ Assistente IA:`;
                         const comp = companies.find(c => c.id === compId);
                         if (comp && comp.fixed_team_id) {
                           setNewProjTeamId(comp.fixed_team_id);
+                          const team = teams.find(t => t.id === comp.fixed_team_id);
+                          if (team && team.assigned_manager_id) {
+                            setNewProjManagerId(team.assigned_manager_id);
+                          }
                         } else {
                           setNewProjTeamId('');
                         }
@@ -3679,9 +3713,19 @@ Assistente IA:`;
                     </select>
                   </div>
                   <div>
-                    <label>Equipe de Instalação Responsável</label>
-                    <select value={newProjTeamId} onChange={e => setNewProjTeamId(e.target.value)}>
-                      <option value="">-- Selecione a Equipe --</option>
+                    <label>Equipe Fixa Responsável</label>
+                    <select 
+                      value={newProjTeamId} 
+                      onChange={e => {
+                        const teamId = e.target.value;
+                        setNewProjTeamId(teamId);
+                        const team = teams.find(t => t.id === teamId);
+                        if (team && team.assigned_manager_id) {
+                          setNewProjManagerId(team.assigned_manager_id);
+                        }
+                      }}
+                    >
+                      <option value="">-- Selecione a Equipe Fixa --</option>
                       {teams.map(t => (
                         <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
                       ))}
@@ -3739,9 +3783,9 @@ Assistente IA:`;
 
               {regSubTab === 'team' && (
                 <form onSubmit={handleCreateTeam} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
-                  <h4 style={{ marginBottom: '8px' }}>Nova Equipe de Instalação de Elevadores</h4>
+                  <h4 style={{ marginBottom: '8px' }}>Cadastrar Equipe Fixa</h4>
                   <div>
-                    <label>Nome da Equipe</label>
+                    <label>Nome da Equipe Fixa</label>
                     <input type="text" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} required placeholder="Ex: Equipe Leste - Montadores" />
                   </div>
                   <div>
@@ -3753,7 +3797,16 @@ Assistente IA:`;
                       ))}
                     </select>
                   </div>
-                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Criar Equipe</button>
+                  <div>
+                    <label>Gestor Responsável Vinculado (Opcional)</label>
+                    <select value={newTeamManagerId} onChange={e => setNewTeamManagerId(e.target.value)}>
+                      <option value="">-- Selecione o Gestor --</option>
+                      {managers.map(m => (
+                        <option key={m.id} value={m.id}>{m.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Criar Equipe Fixa</button>
                 </form>
               )}
 
