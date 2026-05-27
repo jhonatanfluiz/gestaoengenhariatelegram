@@ -2258,9 +2258,7 @@ Assistente IA:`;
                 >
                   <option value="">-- Sem Equipe Fixa --</option>
                   {teams.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({companies.filter(c => c.fixed_team_id === t.id).map(c => c.name).join(', ') || 'Sem empresa'})
-                    </option>
+                    <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
               </div>
@@ -3719,9 +3717,7 @@ Assistente IA:`;
                     >
                       <option value="">-- Selecione a Equipe Fixa --</option>
                       {teams.map(t => (
-                        <option key={t.id} value={t.id}>
-                          {t.name} ({companies.filter(c => c.fixed_team_id === t.id).map(c => c.name).join(', ') || 'Sem empresa'})
-                        </option>
+                        <option key={t.id} value={t.id}>{t.name}</option>
                       ))}
                     </select>
                   </div>
