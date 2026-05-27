@@ -44,11 +44,61 @@ export default function App() {
   const [selectedCascadeTeamId, setSelectedCascadeTeamId] = useState('');
   const [selectedCascadeCompanyId, setSelectedCascadeCompanyId] = useState('');
   const teamCarouselRef = React.useRef(null);
+  const companyCarouselRef = React.useRef(null);
 
   const scrollTeams = (direction) => {
     if (teamCarouselRef.current) {
       const scrollAmount = direction === 'left' ? -340 : 340;
       teamCarouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const scrollCompanies = (direction) => {
+    if (companyCarouselRef.current) {
+      const scrollAmount = direction === 'left' ? -320 : 320;
+      companyCarouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const scrollToCompany = (companyId) => {
+    const container = companyCarouselRef.current;
+    if (!container) return;
+    const card = container.querySelector(`[data-company-id="${companyId}"]`);
+    if (!card) return;
+    
+    // Calculate the scroll position to center the card
+    const cardCenter = card.offsetLeft + card.clientWidth / 2;
+    const containerCenterOffset = container.clientWidth / 2;
+    const targetScrollLeft = cardCenter - containerCenterOffset;
+    
+    container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+  };
+
+  const handleCompanyScroll = (e) => {
+    const container = e.target;
+    const children = container.children;
+    if (!children || children.length === 0) return;
+
+    const containerCenter = container.scrollLeft + container.clientWidth / 2;
+    let closestCompanyId = '';
+    let minDistance = Infinity;
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const companyId = child.getAttribute('data-company-id');
+      if (!companyId) continue;
+
+      const childCenter = child.offsetLeft + child.clientWidth / 2;
+      const distance = Math.abs(containerCenter - childCenter);
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestCompanyId = companyId;
+      }
+    }
+
+    if (closestCompanyId && closestCompanyId !== selectedCascadeCompanyId) {
+      setSelectedCascadeCompanyId(closestCompanyId);
     }
   };
 
@@ -3114,8 +3164,23 @@ Assistente IA:`;
                         <div 
                           key={t.id} 
                           onClick={() => {
-                            setSelectedCascadeTeamId(isSelected ? '' : t.id);
-                            setSelectedCascadeCompanyId(''); // reset company select
+                            const newTeamId = isSelected ? '' : t.id;
+                            setSelectedCascadeTeamId(newTeamId);
+                            if (newTeamId) {
+                              const linkedComps = companies.filter(c => c.fixed_team_id === newTeamId);
+                              if (linkedComps.length > 0) {
+                                setSelectedCascadeCompanyId(linkedComps[0].id);
+                                setTimeout(() => {
+                                  if (companyCarouselRef.current) {
+                                    companyCarouselRef.current.scrollTo({ left: 0, behavior: 'auto' });
+                                  }
+                                }, 100);
+                              } else {
+                                setSelectedCascadeCompanyId('');
+                              }
+                            } else {
+                              setSelectedCascadeCompanyId('');
+                            }
                           }}
                           className={`glass-panel cascade-card ${isSelected ? 'selected' : selectedCascadeTeamId ? 'inactive' : ''}`}
                           style={{ 
@@ -3172,11 +3237,31 @@ Assistente IA:`;
                     const linkedCompanies = companies.filter(c => c.fixed_team_id === selectedCascadeTeamId);
                     return (
                       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                          <ChevronRight size={18} style={{ color: '#06b6d4' }} />
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, textAlign: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Building size={20} style={{ color: '#06b6d4' }} />
                             Empresas Vinculadas a <span style={{ color: '#06b6d4' }}>{selectedTeam?.name}</span>
                           </h3>
+                          {linkedCompanies.length > 0 && (
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                onClick={() => scrollCompanies('left')} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '32px', width: '32px', borderRadius: '50%' }}
+                                title="Deslizar para esquerda"
+                              >
+                                <ChevronLeft size={16} />
+                              </button>
+                              <button 
+                                onClick={() => scrollCompanies('right')} 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '32px', width: '32px', borderRadius: '50%' }}
+                                title="Deslizar para direita"
+                              >
+                                <ChevronRight size={16} />
+                              </button>
+                            </div>
+                          )}
                         </div>
                         
                         {linkedCompanies.length === 0 ? (
@@ -3184,17 +3269,37 @@ Assistente IA:`;
                             Nenhuma empresa parceira vinculada a esta equipe fixa ainda. Vincule-a editando a empresa na aba de Empresas.
                           </p>
                         ) : (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '16px' }}>
+                          <div 
+                            ref={companyCarouselRef}
+                            onScroll={handleCompanyScroll}
+                            style={{
+                              display: 'flex',
+                              overflowX: 'auto',
+                              gap: '16px',
+                              padding: '8px 4px 16px',
+                              scrollBehavior: 'smooth',
+                              WebkitOverflowScrolling: 'touch',
+                              scrollSnapType: 'x mandatory',
+                              justifyContent: 'safe center',
+                              position: 'relative'
+                            }}
+                            className="no-scrollbar"
+                          >
                             {linkedCompanies.map(c => {
                               const linkedTechsCount = technicians.filter(tech => tech.company_id === c.id).length;
                               const isSelected = selectedCascadeCompanyId === c.id;
                               return (
                                 <div 
                                   key={c.id}
-                                  onClick={() => setSelectedCascadeCompanyId(isSelected ? '' : c.id)}
+                                  data-company-id={c.id}
+                                  onClick={() => {
+                                    setSelectedCascadeCompanyId(c.id);
+                                    scrollToCompany(c.id);
+                                  }}
                                   className={`glass-panel cascade-card ${isSelected ? 'selected' : selectedCascadeCompanyId ? 'inactive' : ''}`}
                                   style={{ 
-                                    width: '300px',
+                                    flex: '0 0 300px',
+                                    scrollSnapAlign: 'center',
                                     padding: '20px', 
                                     display: 'flex', 
                                     flexDirection: 'column', 
