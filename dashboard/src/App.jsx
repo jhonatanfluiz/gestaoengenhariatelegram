@@ -3008,6 +3008,7 @@ Assistente IA:`;
                   style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     flexWrap: 'wrap',
                     gap: '10px',
                     background: 'rgba(6, 182, 212, 0.03)',
@@ -3048,7 +3049,6 @@ Assistente IA:`;
                     style={{
                       padding: '2px 8px',
                       fontSize: '0.75rem',
-                      marginLeft: 'auto',
                       height: '24px',
                       borderRadius: '6px',
                       background: 'rgba(239, 68, 68, 0.1)',
@@ -3063,7 +3063,7 @@ Assistente IA:`;
 
               {/* SECTION 1: EQUIPES CAROUSEL */}
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                   <h3 style={{ fontSize: '1.2rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Users size={20} style={{ color: '#06b6d4' }} />
                     Equipes Fixas
@@ -3099,12 +3099,13 @@ Assistente IA:`;
                     padding: '8px 4px 16px',
                     scrollBehavior: 'smooth',
                     WebkitOverflowScrolling: 'touch',
-                    scrollSnapType: 'x mandatory'
+                    scrollSnapType: 'x mandatory',
+                    justifyContent: 'safe center'
                   }}
                   className="no-scrollbar"
                 >
                   {teams.length === 0 ? (
-                    <p style={{ color: '#94a3b8' }}>Nenhuma equipe cadastrada.</p>
+                    <p style={{ color: '#94a3b8', textAlign: 'center', width: '100%' }}>Nenhuma equipe cadastrada.</p>
                   ) : (
                     teams.map(t => {
                       const linkedCompsCount = companies.filter(c => c.fixed_team_id === t.id).length;
@@ -3171,19 +3172,19 @@ Assistente IA:`;
                     const linkedCompanies = companies.filter(c => c.fixed_team_id === selectedCascadeTeamId);
                     return (
                       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                           <ChevronRight size={18} style={{ color: '#06b6d4' }} />
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, textAlign: 'center' }}>
                             Empresas Vinculadas a <span style={{ color: '#06b6d4' }}>{selectedTeam?.name}</span>
                           </h3>
                         </div>
                         
                         {linkedCompanies.length === 0 ? (
-                          <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontStyle: 'italic', paddingLeft: '8px' }}>
+                          <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontStyle: 'italic', textAlign: 'center' }}>
                             Nenhuma empresa parceira vinculada a esta equipe fixa ainda. Vincule-a editando a empresa na aba de Empresas.
                           </p>
                         ) : (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '16px' }}>
                             {linkedCompanies.map(c => {
                               const linkedTechsCount = technicians.filter(tech => tech.company_id === c.id).length;
                               const isSelected = selectedCascadeCompanyId === c.id;
@@ -3193,6 +3194,7 @@ Assistente IA:`;
                                   onClick={() => setSelectedCascadeCompanyId(isSelected ? '' : c.id)}
                                   className={`glass-panel cascade-card ${isSelected ? 'selected' : selectedCascadeCompanyId ? 'inactive' : ''}`}
                                   style={{ 
+                                    width: '300px',
                                     padding: '20px', 
                                     display: 'flex', 
                                     flexDirection: 'column', 
@@ -3249,24 +3251,25 @@ Assistente IA:`;
                     const linkedTechs = technicians.filter(tech => tech.company_id === selectedCascadeCompanyId);
                     return (
                       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
                           <ChevronRight size={18} style={{ color: '#06b6d4' }} />
-                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600, textAlign: 'center' }}>
                             Técnicos de <span style={{ color: '#06b6d4' }}>{selectedCompany?.name}</span>
                           </h3>
                         </div>
                         
                         {linkedTechs.length === 0 ? (
-                          <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontStyle: 'italic', paddingLeft: '8px' }}>
+                          <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontStyle: 'italic', textAlign: 'center' }}>
                             Nenhum técnico cadastrado para esta empresa contratada ainda.
                           </p>
                         ) : (
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '16px' }}>
                             {linkedTechs.map(tech => (
                               <div 
                                 key={tech.id} 
                                 className="glass-panel cascade-card technician-card"
                                 style={{ 
+                                  width: '300px',
                                   display: 'flex', 
                                   flexDirection: 'column', 
                                   gap: '12px', 
