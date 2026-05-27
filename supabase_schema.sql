@@ -465,3 +465,41 @@ BEGIN
     RETURN payload;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 8. CONFIGURAÇÃO DE LEMBRETES AGENDADOS (pg_cron + pg_net)
+-- Habilita as extensões necessárias para agendamento assíncrono de chamadas HTTP
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Agendamento de Lembretes Diários (Todos os dias às 09:00 UTC / 06:00 Horário de Brasília)
+SELECT cron.schedule(
+  'daily-telegram-reminders',
+  '0 9 * * *',
+  $$ SELECT net.http_post(
+       url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
+       body := '{"action": "trigger_reminders", "frequency": "daily"}'::jsonb
+     );
+  $$
+);
+
+-- Agendamento de Lembretes Semanais (Toda segunda-feira às 09:00 UTC / 06:00 Horário de Brasília)
+SELECT cron.schedule(
+  'weekly-telegram-reminders',
+  '0 9 * * 1',
+  $$ SELECT net.http_post(
+       url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
+       body := '{"action": "trigger_reminders", "frequency": "weekly"}'::jsonb
+     );
+  $$
+);
+
+-- Agendamento de Lembretes Mensais (Todo dia 1º de cada mês às 09:00 UTC / 06:00 Horário de Brasília)
+SELECT cron.schedule(
+  'monthly-telegram-reminders',
+  '0 9 1 * *',
+  $$ SELECT net.http_post(
+       url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
+       body := '{"action": "trigger_reminders", "frequency": "monthly"}'::jsonb
+     );
+  $$
+);
