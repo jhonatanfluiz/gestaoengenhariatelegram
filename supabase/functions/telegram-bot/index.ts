@@ -242,6 +242,71 @@ async function sendTelegram(method: string, body: object, log: (...args: any[]) 
   }
 }
 
+async function askPhaseQuestion(
+  chatId: string, 
+  projectId: string, 
+  phaseNum: number, 
+  profileId: string, 
+  log: (...args: any[]) => void
+) {
+  log(`askPhaseQuestion called: chatId=${chatId}, projectId=${projectId}, phaseNum=${phaseNum}`);
+
+  if (phaseNum > 20) {
+    log('All 20 phases processed. Ending checklist session.');
+    await sendTelegram('sendMessage', {
+      chat_id: chatId,
+      text: '🎉 **Checklist Concluído!** Você respondeu a todas as 20 fases da instalação. Obrigado por enviar as atualizações!',
+      parse_mode: 'Markdown',
+    }, log);
+    
+    // Reset bot session
+    await supabase.from('bot_sessions').delete().eq('telegram_chat_id', chatId);
+    return;
+  }
+
+  // Fetch phase name
+  log(`Querying phase name for number: ${phaseNum}`);
+  const { data: phase, error: phaseErr } = await supabase
+    .from('phases')
+    .select('*')
+    .eq('phase_number', phaseNum)
+    .maybeSingle();
+
+  if (phaseErr || !phase) {
+    log(`Error fetching phase name or not found: ${phaseErr?.message || 'NOT FOUND'}`);
+    await sendTelegram('sendMessage', {
+      chat_id: chatId,
+      text: `Erro ao avançar para a próxima fase. Digite /atualizar para tentar novamente.`,
+    }, log);
+    return;
+  }
+
+  log(`Sending question for Phase [${phaseNum}/20]: "${phase.name}"`);
+  await sendTelegram('sendMessage', {
+    chat_id: chatId,
+    text: `📍 **Fase [${phaseNum}/20]:** ${phase.name}\n\n**Esta fase já foi executada ou iniciada?**`,
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '👍 Sim', callback_data: `start:yes` },
+          { text: '👎 Não', callback_data: `start:no` }
+        ]
+      ]
+    }
+  }, log);
+
+  // Update session state
+  log(`Updating bot session to awaiting_started for phase ${phaseNum}`);
+  await supabase.from('bot_sessions').upsert({
+    telegram_chat_id: chatId,
+    active_project_id: projectId,
+    current_question: 'awaiting_started',
+    temp_phase_number: phaseNum,
+    updated_at: new Date().toISOString(),
+  });
+}
+
 async function handleMessage(message: any, log: (...args: any[]) => void) {
   const chatId = String(message.chat.id);
   const text = message.text?.trim() || '';
@@ -415,40 +480,16 @@ async function handleMessage(message: any, log: (...args: any[]) => void) {
     // Find the current active phase (first phase that is not 100% complete)
     const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[19];
     const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 20;
-    const currentPhaseName = currentPhaseProgress.phases?.name || 'Entrega técnica';
 
-    log(`Active Phase: [${currentPhaseNum}/20] "${currentPhaseName}"`);
-
-    // Ask Question 1: Did they start the phase?
-    log('Sending start question message...');
+    // Send header message first
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: `🏗️ **Projeto:** ${activeProject.name}\n📍 **Fase [${currentPhaseNum}/20]:** ${currentPhaseName}\n\n**Esta fase já foi executada ou iniciada?**`,
+      text: `🏗️ **Projeto:** ${activeProject.name}\n\nIniciando atualização de progresso...`,
       parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '👍 Sim', callback_data: `start:yes` },
-            { text: '👎 Não', callback_data: `start:no` }
-          ]
-        ]
-      }
     }, log);
 
-    // Save session state
-    log('Upserting bot session...');
-    const { error: sessErr } = await supabase.from('bot_sessions').upsert({
-      telegram_chat_id: chatId,
-      active_project_id: activeProject.id,
-      current_question: 'awaiting_started',
-      temp_phase_number: currentPhaseNum,
-      updated_at: new Date().toISOString(),
-    });
-    if (sessErr) {
-      log('Bot session upsert error:', sessErr);
-    } else {
-      log('Bot session upsert SUCCESS');
-    }
+    // Call askPhaseQuestion for the first incomplete phase
+    await askPhaseQuestion(chatId, activeProject.id, currentPhaseNum, profile.id, log);
     return;
   }
 
@@ -481,6 +522,8 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
     log(`Profile lookup error or not found: ${profileErr?.message || 'NOT FOUND'}`);
     return;
   }
+
+  const profileId = profile.id;
 
   // 2. Fetch session to get projectId and phaseNum
   const { data: session, error: sessionErr } = await supabase
@@ -521,6 +564,17 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
   if (action === 'start') {
     if (value === 'yes') {
       log('User answered YES to start phase. Prompting for progress percent.');
+      
+      // Update original message to show choice and remove buttons
+      if (callbackQuery.message) {
+        await sendTelegram('editMessageText', {
+          chat_id: chatId,
+          message_id: callbackQuery.message.message_id,
+          text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👍 Sim`,
+          parse_mode: 'Markdown'
+        }, log);
+      }
+
       await sendTelegram('sendMessage', {
         chat_id: chatId,
         text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\nQual o **percentual executado**?`,
@@ -550,6 +604,17 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
     } else {
       // "No" clicked: update database to started=false, progress=0
       log('User answered NO. Resetting progress to 0% in DB.');
+
+      // Update original message to show choice and remove buttons
+      if (callbackQuery.message) {
+        await sendTelegram('editMessageText', {
+          chat_id: chatId,
+          message_id: callbackQuery.message.message_id,
+          text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👎 Não`,
+          parse_mode: 'Markdown'
+        }, log);
+      }
+
       await supabase
         .from('project_phases_progress')
         .update({ 
@@ -566,13 +631,22 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
         parse_mode: 'Markdown',
       }, log);
 
-      // Reset bot session
-      log('Deleting bot session.');
-      await supabase.from('bot_sessions').delete().eq('telegram_chat_id', chatId);
+      // Ask next phase question
+      await askPhaseQuestion(chatId, projectId, phaseNum + 1, profileId, log);
     }
   } else if (action === 'progress') {
     const progressPercent = parseInt(value, 10);
     log(`User selected progress percent: ${progressPercent}%`);
+
+    // Update original progress question message to show choice and remove buttons
+    if (callbackQuery.message) {
+      await sendTelegram('editMessageText', {
+        chat_id: chatId,
+        message_id: callbackQuery.message.message_id,
+        text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\nQual o **percentual executado**? 📊 ${progressPercent}%`,
+        parse_mode: 'Markdown'
+      }, log);
+    }
 
     // Update progress in DB
     const { error: updateErr } = await supabase
@@ -598,18 +672,7 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
 
     if (progressPercent === 100) {
       let nextMsg = '';
-      if (phaseNum < 20) {
-        // Fetch next phase name
-        const nextPhaseNum = phaseNum + 1;
-        const { data: nextPhase } = await supabase
-          .from('phases')
-          .select('name')
-          .eq('phase_number', nextPhaseNum)
-          .maybeSingle();
-
-        nextMsg = `\n\nPróxima etapa: **Fase [${nextPhaseNum}/20]: ${nextPhase?.name || ''}**`;
-      } else {
-        // Complete the project status in the database
+      if (phaseNum === 20) {
         log('Final phase completed. Completing project status.');
         await supabase
           .from('projects')
@@ -632,9 +695,8 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
       }, log);
     }
 
-    // Reset bot session
-    log('Deleting bot session.');
-    await supabase.from('bot_sessions').delete().eq('telegram_chat_id', chatId);
+    // Ask next phase question
+    await askPhaseQuestion(chatId, projectId, phaseNum + 1, profileId, log);
   }
 
   // Answer callback query to stop loading spinner on Telegram
