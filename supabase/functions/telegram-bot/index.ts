@@ -198,40 +198,82 @@ async function handleMessage(message: any) {
   }
 
   if (text.startsWith('/atualizar')) {
-    // 2. Find teams this technician belongs to
+    // 2. Try to find projects directly assigned to this technician
+    const { data: directProjects, error: directProjErr } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('assigned_technician_id', profile.id)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false });
+
+    if (directProjErr) {
+      console.error('Error fetching direct projects:', directProjErr);
+    }
+
+    // 3. Find teams this technician belongs to (for fallback/team-based projects)
+    let teamProjectIds: string[] = [];
     const { data: memberships, error: memErr } = await supabase
       .from('team_members')
       .select('team_id')
       .eq('profile_id', profile.id);
 
-    if (memErr || !memberships || memberships.length === 0) {
-      await sendTelegram('sendMessage', {
-        chat_id: chatId,
-        text: 'Você não está vinculado a nenhuma equipe de instalação ativa. Peça para o gestor cadastrá-lo em uma equipe.',
-      });
-      return;
+    if (!memErr && memberships && memberships.length > 0) {
+      const teamIds = memberships.map(m => m.team_id);
+      const { data: teamProjects, error: teamProjErr } = await supabase
+        .from('projects')
+        .select('id')
+        .in('team_id', teamIds)
+        .neq('status', 'completed');
+      
+      if (!teamProjErr && teamProjects) {
+        teamProjectIds = teamProjects.map(p => p.id);
+      }
     }
 
-    const teamIds = memberships.map(m => m.team_id);
+    // 4. Combine unique active projects
+    const allProjects: any[] = [];
+    const seenIds = new Set<string>();
 
-    // 3. Find projects assigned to these teams
-    const { data: projects, error: projErr } = await supabase
-      .from('projects')
-      .select('*')
-      .in('team_id', teamIds)
-      .neq('status', 'completed')
-      .order('created_at', { ascending: false });
+    if (directProjects) {
+      for (const p of directProjects) {
+        if (!seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          allProjects.push(p);
+        }
+      }
+    }
 
-    if (projErr || !projects || projects.length === 0) {
+    if (teamProjectIds.length > 0) {
+      const unseenTeamProjIds = teamProjectIds.filter(id => !seenIds.has(id));
+      if (unseenTeamProjIds.length > 0) {
+        const { data: extraProjects } = await supabase
+          .from('projects')
+          .select('*')
+          .in('id', unseenTeamProjIds)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false });
+        
+        if (extraProjects) {
+          for (const p of extraProjects) {
+            if (!seenIds.has(p.id)) {
+              seenIds.add(p.id);
+              allProjects.push(p);
+            }
+          }
+        }
+      }
+    }
+
+    if (allProjects.length === 0) {
       await sendTelegram('sendMessage', {
         chat_id: chatId,
-        text: 'Sua equipe não possui nenhum projeto de elevador ativo atribuído no momento.',
+        text: 'Você não possui nenhum projeto de elevador ativo atribuído no momento. Peça para o gestor associá-lo a uma obra como Técnico Responsável.',
       });
       return;
     }
 
     // Default to the first (newest) active project
-    const activeProject = projects[0];
+    const activeProject = allProjects[0];
 
     // 4. Fetch all phases for this project to calculate the current phase (first incomplete)
     const { data: phasesProgress, error: phaseErr } = await supabase
