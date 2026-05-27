@@ -623,13 +623,12 @@ export default function App() {
 
   const handleCreateTeam = async (e) => {
     e.preventDefault();
-    if (!newTeamName || !newTeamCompanyId) return;
+    if (!newTeamName) return;
 
     const { error } = await supabase
       .from('teams')
       .insert({
         name: newTeamName,
-        company_id: newTeamCompanyId,
         assigned_manager_id: newTeamManagerId || null
       });
 
@@ -637,7 +636,6 @@ export default function App() {
     else {
       showToast(`Equipe "${newTeamName}" criada!`);
       setNewTeamName('');
-      setNewTeamCompanyId('');
       setNewTeamManagerId('');
       setActiveTab('teams');
       fetchDashboardData();
@@ -1009,7 +1007,6 @@ export default function App() {
       .from('teams')
       .update({
         name: editName,
-        company_id: editCompanyId || null,
         assigned_manager_id: editTeamManagerId || null
       })
       .eq('id', id);
@@ -2261,7 +2258,9 @@ Assistente IA:`;
                 >
                   <option value="">-- Sem Equipe Fixa --</option>
                   {teams.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({companies.filter(c => c.fixed_team_id === t.id).map(c => c.name).join(', ') || 'Sem empresa'})
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2319,15 +2318,6 @@ Assistente IA:`;
               <div>
                 <label>Nome da Equipe Fixa</label>
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
-              </div>
-              <div>
-                <label>Empresa Vinculada</label>
-                <select value={editCompanyId} onChange={e => setEditCompanyId(e.target.value)} required>
-                  <option value="">-- Selecione a Empresa --</option>
-                  {companies.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
               </div>
               <div>
                 <label>Gestor Responsável Vinculado (Opcional)</label>
@@ -3010,7 +3000,9 @@ Assistente IA:`;
                     <div key={t.id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
                       <div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
-                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>Empresa Parceira: {t.companies?.name || 'Não associada'}</p>
+                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
+                          Empresas Vinculadas: {companies.filter(c => c.fixed_team_id === t.id).map(c => c.name).join(', ') || 'Nenhuma'}
+                        </p>
                         <p style={{ fontSize: '0.8rem', color: '#06b6d4', marginTop: '2px', fontWeight: 500 }}>Gestor Vinculado: {t.profiles?.full_name || 'Nenhum'}</p>
                       </div>
                       <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
@@ -3727,7 +3719,9 @@ Assistente IA:`;
                     >
                       <option value="">-- Selecione a Equipe Fixa --</option>
                       {teams.map(t => (
-                        <option key={t.id} value={t.id}>{t.name} ({t.companies?.name})</option>
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({companies.filter(c => c.fixed_team_id === t.id).map(c => c.name).join(', ') || 'Sem empresa'})
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -3787,15 +3781,6 @@ Assistente IA:`;
                   <div>
                     <label>Nome da Equipe Fixa</label>
                     <input type="text" value={newTeamName} onChange={e => setNewTeamName(e.target.value)} required placeholder="Ex: Equipe Leste - Montadores" />
-                  </div>
-                  <div>
-                    <label>Empresa Vinculada</label>
-                    <select value={newTeamCompanyId} onChange={e => setNewTeamCompanyId(e.target.value)} required>
-                      <option value="">-- Selecione a Empresa --</option>
-                      {companies.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
                   </div>
                   <div>
                     <label>Gestor Responsável Vinculado (Opcional)</label>
