@@ -381,7 +381,7 @@ export default function App() {
     // 5. Fetch teams
     const { data: tms, error: err5 } = await supabase
       .from('teams')
-      .select('*, companies(name), profiles:assigned_manager_id(full_name)')
+      .select('*, profiles:assigned_manager_id(full_name)')
       .order('name');
 
     if (err5) console.error(err5);
