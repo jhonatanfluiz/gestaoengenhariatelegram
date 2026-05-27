@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 
-const BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
+let BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
+// Limpa parênteses, colchetes ou espaços adicionados acidentalmente
+BOT_TOKEN = BOT_TOKEN.replace(/[()\[\]]/g, '').trim();
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
