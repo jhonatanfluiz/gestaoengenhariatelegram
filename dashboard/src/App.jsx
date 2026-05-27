@@ -5,7 +5,7 @@ import {
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronLeft, ChevronRight, HardHat, Calendar,
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
-  Send, Trash2, Upload, FileSpreadsheet
+  Send, Trash2, Upload, FileSpreadsheet, Maximize2, Minimize2
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -172,6 +172,7 @@ export default function App() {
     }
   });
   const [forecastLoading, setForecastLoading] = useState(false);
+  const [expandedAiEst, setExpandedAiEst] = useState(null); // { projectName, text }
 
   const updateProjectForecast = (projectId, text) => {
     setProjectForecast(prev => {
@@ -3684,8 +3685,33 @@ Assistente IA:`;
                                 </strong>
                               </div>
                               <div>
-                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Brain size={12} style={{ color: '#06b6d4' }} /> Previsão Refinada (IA Gemini)
+                                <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Brain size={12} style={{ color: '#06b6d4' }} />
+                                  Previsão Refinada (IA Gemini)
+                                  {aiEst && (
+                                    <button
+                                      onClick={() => setExpandedAiEst({ projectName: rank.project_name, text: aiEst })}
+                                      title="Expandir leitura"
+                                      style={{
+                                        marginLeft: 'auto',
+                                        background: 'rgba(6,182,212,0.1)',
+                                        border: '1px solid rgba(6,182,212,0.25)',
+                                        borderRadius: '4px',
+                                        color: '#06b6d4',
+                                        cursor: 'pointer',
+                                        padding: '2px 5px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        fontSize: '0.65rem',
+                                        transition: 'all 0.2s',
+                                      }}
+                                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.22)'; e.currentTarget.style.transform = 'scale(1.05)'; }}
+                                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.1)'; e.currentTarget.style.transform = 'scale(1)'; }}
+                                    >
+                                      <Maximize2 size={10} /> Expandir
+                                    </button>
+                                  )}
                                 </span>
                                 <div style={{ fontSize: '0.8rem', color: '#e2e8f0' }}>
                                   {aiEst ? (
@@ -4306,6 +4332,82 @@ Assistente IA:`;
       )}
       {renderEditModal()}
       {renderReportModal()}
+
+      {/* Modal: Previsão IA Expandida */}
+      {expandedAiEst && (
+        <div
+          onClick={() => setExpandedAiEst(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '24px',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(135deg, rgba(15,23,42,0.98) 0%, rgba(30,41,59,0.98) 100%)',
+              border: '1px solid rgba(6,182,212,0.25)',
+              borderRadius: '16px',
+              padding: '28px',
+              maxWidth: '680px',
+              width: '100%',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(6,182,212,0.1)',
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Brain size={20} style={{ color: '#06b6d4' }} />
+                <div>
+                  <p style={{ fontSize: '0.7rem', color: '#64748b', margin: 0 }}>Previsão Refinada (IA Gemini)</p>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: '#ffffff' }}>{expandedAiEst.projectName}</h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setExpandedAiEst(null)}
+                style={{
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.2)',
+                  borderRadius: '8px',
+                  color: '#f87171',
+                  cursor: 'pointer',
+                  padding: '6px 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.8rem',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}
+                title="Fechar"
+              >
+                <Minimize2 size={13} /> Fechar
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{
+              overflowY: 'auto',
+              flex: 1,
+              fontSize: '0.92rem',
+              lineHeight: '1.7',
+              color: '#e2e8f0',
+              padding: '4px 2px',
+            }}>
+              {renderMarkdown(expandedAiEst.text)}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
