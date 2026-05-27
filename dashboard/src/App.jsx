@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
-  Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
+  Smartphone, ShieldAlert, Check, X, ChevronLeft, ChevronRight, HardHat, Calendar,
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
   Send, Trash2, Upload, FileSpreadsheet
 } from 'lucide-react';
@@ -41,6 +41,16 @@ export default function App() {
   const [activeProject, setActiveProject] = useState(null);
   const [projectPhases, setProjectPhases] = useState([]);
   const [projectLogs, setProjectLogs] = useState([]);
+  const [selectedCascadeTeamId, setSelectedCascadeTeamId] = useState('');
+  const [selectedCascadeCompanyId, setSelectedCascadeCompanyId] = useState('');
+  const teamCarouselRef = React.useRef(null);
+
+  const scrollTeams = (direction) => {
+    if (teamCarouselRef.current) {
+      const scrollAmount = direction === 'left' ? -340 : 340;
+      teamCarouselRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   // S-Curve states
   const [sCurveProjId, setSCurveProjId] = useState('');
@@ -2989,92 +2999,325 @@ Assistente IA:`;
 
           {/* Teams tab */}
           {activeTab === 'teams' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} className="animate-fade-in">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                {teams.length === 0 ? (
-                  <p style={{ color: '#94a3b8' }}>Nenhuma equipe cadastrada.</p>
-                ) : (
-                  teams.map(t => (
-                    <div key={t.id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
-                      <div>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
-                        <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
-                          Empresas Vinculadas: {companies.filter(c => c.fixed_team_id === t.id).map(c => c.name).join(', ') || 'Nenhuma'}
-                        </p>
-                        <p style={{ fontSize: '0.8rem', color: '#06b6d4', marginTop: '2px', fontWeight: 500 }}>Gestor Vinculado: {t.profiles?.full_name || 'Nenhum'}</p>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
-                        <button 
-                          onClick={() => startEdit('team', t)} 
-                          className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteTeam(t.id)} 
-                          className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
-                        >
-                          Excluir
-                        </button>
-                      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }} className="animate-fade-in">
+              
+              {/* Cascade Selection Breadcrumbs */}
+              {(selectedCascadeTeamId || selectedCascadeCompanyId) && (
+                <div 
+                  className="glass-panel" 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    background: 'rgba(6, 182, 212, 0.03)',
+                    border: '1px solid rgba(6, 182, 212, 0.15)',
+                    padding: '12px 20px',
+                    borderRadius: '12px',
+                    fontSize: '0.85rem',
+                    color: '#94a3b8',
+                    animation: 'fadeIn 0.3s ease-out forwards'
+                  }}
+                >
+                  <span style={{ color: '#06b6d4', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Sparkles size={14} /> Caminho de Seleção:
+                  </span>
+                  <span>Equipes</span>
+                  {selectedCascadeTeamId && (
+                    <>
+                      <ChevronRight size={14} style={{ opacity: 0.5 }} />
+                      <span style={{ color: '#ffffff', fontWeight: 500 }}>
+                        {teams.find(t => t.id === selectedCascadeTeamId)?.name}
+                      </span>
+                    </>
+                  )}
+                  {selectedCascadeCompanyId && (
+                    <>
+                      <ChevronRight size={14} style={{ opacity: 0.5 }} />
+                      <span style={{ color: '#ffffff', fontWeight: 500 }}>
+                        {companies.find(c => c.id === selectedCascadeCompanyId)?.name}
+                      </span>
+                    </>
+                  )}
+                  <button 
+                    onClick={() => {
+                      setSelectedCascadeTeamId('');
+                      setSelectedCascadeCompanyId('');
+                    }}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '2px 8px',
+                      fontSize: '0.75rem',
+                      marginLeft: 'auto',
+                      height: '24px',
+                      borderRadius: '6px',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.2)',
+                      color: '#f87171'
+                    }}
+                  >
+                    Limpar Filtro
+                  </button>
+                </div>
+              )}
+
+              {/* SECTION 1: EQUIPES CAROUSEL */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Users size={20} style={{ color: '#06b6d4' }} />
+                    Equipes Fixas
+                  </h3>
+                  {teams.length > 0 && (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={() => scrollTeams('left')} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '32px', width: '32px', borderRadius: '50%' }}
+                        title="Deslizar para esquerda"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button 
+                        onClick={() => scrollTeams('right')} 
+                        className="btn btn-secondary" 
+                        style={{ padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '32px', width: '32px', borderRadius: '50%' }}
+                        title="Deslizar para direita"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
-                  ))
+                  )}
+                </div>
+
+                <div 
+                  ref={teamCarouselRef}
+                  style={{
+                    display: 'flex',
+                    overflowX: 'auto',
+                    gap: '16px',
+                    padding: '8px 4px 16px',
+                    scrollBehavior: 'smooth',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollSnapType: 'x mandatory'
+                  }}
+                  className="no-scrollbar"
+                >
+                  {teams.length === 0 ? (
+                    <p style={{ color: '#94a3b8' }}>Nenhuma equipe cadastrada.</p>
+                  ) : (
+                    teams.map(t => {
+                      const linkedCompsCount = companies.filter(c => c.fixed_team_id === t.id).length;
+                      const isSelected = selectedCascadeTeamId === t.id;
+                      return (
+                        <div 
+                          key={t.id} 
+                          onClick={() => {
+                            setSelectedCascadeTeamId(isSelected ? '' : t.id);
+                            setSelectedCascadeCompanyId(''); // reset company select
+                          }}
+                          className={`glass-panel cascade-card ${isSelected ? 'selected' : selectedCascadeTeamId ? 'inactive' : ''}`}
+                          style={{ 
+                            flex: '0 0 300px',
+                            scrollSnapAlign: 'start',
+                            padding: '20px', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            justifyContent: 'space-between', 
+                            gap: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <div>
+                            <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{t.name}</h4>
+                            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
+                              {linkedCompsCount} {linkedCompsCount === 1 ? 'Empresa vinculada' : 'Empresas vinculadas'}
+                            </p>
+                            <p style={{ fontSize: '0.8rem', color: '#06b6d4', marginTop: '2px', fontWeight: 500 }}>
+                              Gestor: {t.profiles?.full_name || 'Nenhum'}
+                            </p>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); startEdit('team', t); }} 
+                              className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                            >
+                              Editar
+                            </button>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteTeam(t.id); }} 
+                              className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                            >
+                              Excluir
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* SECTION 2: LINKED COMPANIES */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
+                {!selectedCascadeTeamId ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', background: 'rgba(255,255,255,0.01)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.05)' }}>
+                    <Building size={32} style={{ color: '#94a3b8', marginBottom: '8px', opacity: 0.5 }} />
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Selecione uma equipe fixa acima para ver as empresas vinculadas.</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const selectedTeam = teams.find(t => t.id === selectedCascadeTeamId);
+                    const linkedCompanies = companies.filter(c => c.fixed_team_id === selectedCascadeTeamId);
+                    return (
+                      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <ChevronRight size={18} style={{ color: '#06b6d4' }} />
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                            Empresas Vinculadas a <span style={{ color: '#06b6d4' }}>{selectedTeam?.name}</span>
+                          </h3>
+                        </div>
+                        
+                        {linkedCompanies.length === 0 ? (
+                          <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontStyle: 'italic', paddingLeft: '8px' }}>
+                            Nenhuma empresa parceira vinculada a esta equipe fixa ainda. Vincule-a editando a empresa na aba de Empresas.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                            {linkedCompanies.map(c => {
+                              const linkedTechsCount = technicians.filter(tech => tech.company_id === c.id).length;
+                              const isSelected = selectedCascadeCompanyId === c.id;
+                              return (
+                                <div 
+                                  key={c.id}
+                                  onClick={() => setSelectedCascadeCompanyId(isSelected ? '' : c.id)}
+                                  className={`glass-panel cascade-card ${isSelected ? 'selected' : selectedCascadeCompanyId ? 'inactive' : ''}`}
+                                  style={{ 
+                                    padding: '20px', 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    justifyContent: 'space-between', 
+                                    gap: '12px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                      <Building style={{ color: '#06b6d4' }} size={20} />
+                                      <h4 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>{c.name}</h4>
+                                    </div>
+                                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '6px' }}>CNPJ: {c.cnpj || 'Não informado'}</p>
+                                    <p style={{ fontSize: '0.8rem', color: '#06b6d4', marginTop: '4px', fontWeight: 500 }}>
+                                      {linkedTechsCount} {linkedTechsCount === 1 ? 'técnico cadastrado' : 'técnicos cadastrados'}
+                                    </p>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); startEdit('company', c); }} 
+                                      className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                                    >
+                                      Editar
+                                    </button>
+                                    <button 
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteCompany(c.id); }} 
+                                      className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
                 )}
               </div>
 
-              {/* Technicians section */}
-              <div className="glass-panel" style={{ padding: '24px' }}>
-                <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <UserCheck size={20} style={{ color: '#06b6d4' }} />
-                  Técnicos Cadastrados
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                  {technicians.length === 0 ? (
-                    <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Nenhum técnico cadastrado ainda.</p>
-                  ) : (
-                    technicians.map(tech => (
-                      <div key={tech.id} style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4' }}>
-                            <HardHat size={16} />
-                          </div>
-                          <div>
-                            <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{tech.full_name}</p>
-                            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Telegram Chat ID: <code>{tech.telegram_chat_id}</code></p>
-                          </div>
+              {/* SECTION 3: LINKED TECHNICIANS */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
+                {!selectedCascadeCompanyId ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', background: 'rgba(255,255,255,0.01)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.05)' }}>
+                    <UserCheck size={32} style={{ color: '#94a3b8', marginBottom: '8px', opacity: 0.5 }} />
+                    <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Selecione uma empresa contratada acima para ver os técnicos vinculados.</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const selectedCompany = companies.find(c => c.id === selectedCascadeCompanyId);
+                    const linkedTechs = technicians.filter(tech => tech.company_id === selectedCascadeCompanyId);
+                    return (
+                      <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <ChevronRight size={18} style={{ color: '#06b6d4' }} />
+                          <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>
+                            Técnicos de <span style={{ color: '#06b6d4' }}>{selectedCompany?.name}</span>
+                          </h3>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '8px', flexWrap: 'wrap' }}>
-                          <button 
-                            onClick={() => startEdit('tech', tech)} 
-                            className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
-                          >
-                            Editar
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteTechnician(tech.id)} 
-                            className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
-                          >
-                            Excluir
-                          </button>
-                          <button 
-                            onClick={() => handleSendTestMessage(tech)} 
-                            className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #10b981', color: '#10b981', marginTop: '4px' }}
-                          >
-                            <Send size={12} />
-                            Testar Bot Telegram
-                          </button>
-                          <button 
-                            onClick={() => handleOpenReportModal('tech', tech)} 
-                            className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid rgba(6,182,212,0.3)', color: '#06b6d4', marginTop: '4px' }}
-                          >
-                            <Brain size={12} />
-                            Relatório IA
-                          </button>
-                        </div>
+                        
+                        {linkedTechs.length === 0 ? (
+                          <p style={{ color: '#94a3b8', fontSize: '0.9rem', fontStyle: 'italic', paddingLeft: '8px' }}>
+                            Nenhum técnico cadastrado para esta empresa contratada ainda.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                            {linkedTechs.map(tech => (
+                              <div 
+                                key={tech.id} 
+                                className="glass-panel cascade-card technician-card"
+                                style={{ 
+                                  display: 'flex', 
+                                  flexDirection: 'column', 
+                                  gap: '12px', 
+                                  padding: '20px' 
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                  <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: 'rgba(6,182,212,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06b6d4' }}>
+                                    <HardHat size={18} />
+                                  </div>
+                                  <div>
+                                    <p style={{ fontWeight: 600, fontSize: '0.95rem', margin: 0 }}>{tech.full_name}</p>
+                                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '2px 0 0' }}>Telegram Chat ID: <code>{tech.telegram_chat_id}</code></p>
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '10px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                  <button 
+                                    onClick={() => startEdit('tech', tech)} 
+                                    className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteTechnician(tech.id)} 
+                                    className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
+                                  >
+                                    Excluir
+                                  </button>
+                                  <button 
+                                    onClick={() => handleSendTestMessage(tech)} 
+                                    className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #10b981', color: '#10b981', marginTop: '4px' }}
+                                  >
+                                    <Send size={12} />
+                                    Testar Bot Telegram
+                                  </button>
+                                  <button 
+                                    onClick={() => handleOpenReportModal('tech', tech)} 
+                                    className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid rgba(6,182,212,0.3)', color: '#06b6d4', marginTop: '4px' }}
+                                  >
+                                    <Brain size={12} />
+                                    Relatório IA
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    ))
-                  )}
-                </div>
+                    );
+                  })()
+                )}
               </div>
             </div>
           )}
