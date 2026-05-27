@@ -185,6 +185,116 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Action to trigger scheduled reminders (daily, weekly, monthly)
+    if (body.action === 'trigger_reminders') {
+      const frequency = body.frequency;
+      if (!frequency || !['daily', 'weekly', 'monthly'].includes(frequency)) {
+        return new Response(JSON.stringify({ error: 'Invalid or missing frequency' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        });
+      }
+
+      log(`Triggering scheduled reminders for frequency: ${frequency}`);
+
+      // Query projects matching the frequency and that are not completed
+      let query = supabase
+        .from('projects')
+        .select('*')
+        .neq('status', 'completed');
+
+      if (frequency === 'weekly') {
+        // 'weekly' or NULL (since weekly is default)
+        query = query.or('notification_frequency.eq.weekly,notification_frequency.is.null');
+      } else {
+        query = query.eq('notification_frequency', frequency);
+      }
+
+      const { data: projects, error: projErr } = await query;
+
+      if (projErr) {
+        log('Error querying projects for reminders:', projErr);
+        return new Response(JSON.stringify({ error: projErr.message }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500,
+        });
+      }
+
+      log(`Found ${projects?.length || 0} projects with frequency ${frequency}`);
+
+      let sentCount = 0;
+      if (projects && projects.length > 0) {
+        for (const project of projects) {
+          if (!project.assigned_technician_id) {
+            log(`Project "${project.name}" has no assigned technician. Skipping.`);
+            continue;
+          }
+
+          // Fetch technician profile
+          const { data: techProfile, error: techErr } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', project.assigned_technician_id)
+            .maybeSingle();
+
+          if (techErr || !techProfile) {
+            log(`Error fetching profile for tech ${project.assigned_technician_id} on project "${project.name}":`, techErr);
+            continue;
+          }
+
+          if (!techProfile.telegram_chat_id) {
+            log(`Technician "${techProfile.full_name}" has no telegram_chat_id configured. Skipping.`);
+            continue;
+          }
+
+          // Fetch phases progress for this project
+          const { data: phasesProgress, error: phaseErr } = await supabase
+            .from('project_phases_progress')
+            .select(`
+              *,
+              phases:phase_id (
+                id,
+                phase_number,
+                name
+              )
+            `)
+            .eq('project_id', project.id);
+
+          if (phaseErr || !phasesProgress || phasesProgress.length === 0) {
+            log(`Error fetching phase progress for project "${project.name}": ${phaseErr?.message || 'Empty'}`);
+            continue;
+          }
+
+          // Sort by phase number
+          const sortedPhases = phasesProgress.sort((a: any, b: any) => 
+            (a.phases?.phase_number || 0) - (b.phases?.phase_number || 0)
+          );
+
+          // Find first incomplete phase
+          const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[19];
+          const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 20;
+
+          log(`Sending reminder to ${techProfile.full_name} (${techProfile.telegram_chat_id}) for project "${project.name}", phase ${currentPhaseNum}`);
+
+          // Send an intro message
+          await sendTelegram('sendMessage', {
+            chat_id: String(techProfile.telegram_chat_id),
+            text: `⏰ **Lembrete de Atualização**\n\nOlá, **${techProfile.full_name}**! Está na hora de atualizar o progresso da obra **${project.name}**.`,
+            parse_mode: 'Markdown',
+          }, log);
+
+          // Trigger the question
+          await askPhaseQuestion(String(techProfile.telegram_chat_id), project.id, currentPhaseNum, techProfile.id, log);
+          sentCount++;
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, sent_reminders_count: sentCount }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
     const update: TelegramUpdate = body;
     log('Received Telegram Update payload:', JSON.stringify(update));
 
