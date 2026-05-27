@@ -59,6 +59,7 @@ export default function App() {
   const [editDeadlineDate, setEditDeadlineDate] = useState('');
   const [editTelegram, setEditTelegram] = useState('');
   const [editCnpj, setEditCnpj] = useState('');
+  const [editFixedTeamId, setEditFixedTeamId] = useState('');
 
 
   // PWA Install State
@@ -174,6 +175,7 @@ export default function App() {
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyCnpj, setNewCompanyCnpj] = useState('');
+  const [newCompanyFixedTeamId, setNewCompanyFixedTeamId] = useState('');
 
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamCompanyId, setNewTeamCompanyId] = useState('');
@@ -602,7 +604,8 @@ export default function App() {
       .from('companies')
       .insert({
         name: newCompanyName,
-        cnpj: newCompanyCnpj || null
+        cnpj: newCompanyCnpj || null,
+        fixed_team_id: newCompanyFixedTeamId || null
       });
 
     if (error) showToast('Erro ao cadastrar empresa: ' + error.message, 'danger');
@@ -610,6 +613,7 @@ export default function App() {
       showToast(`Empresa "${newCompanyName}" cadastrada!`);
       setNewCompanyName('');
       setNewCompanyCnpj('');
+      setNewCompanyFixedTeamId('');
       setActiveTab('companies');
       fetchDashboardData();
     }
@@ -874,6 +878,7 @@ export default function App() {
     } else if (type === 'company') {
       setEditName(item.name || '');
       setEditCnpj(item.cnpj || '');
+      setEditFixedTeamId(item.fixed_team_id || '');
     }
   };
 
@@ -1044,7 +1049,8 @@ export default function App() {
       .from('companies')
       .update({
         name: editName,
-        cnpj: editCnpj || null
+        cnpj: editCnpj || null,
+        fixed_team_id: editFixedTeamId || null
       })
       .eq('id', id);
 
@@ -2210,7 +2216,20 @@ Assistente IA:`;
               </div>
               <div>
                 <label>Empresa Contratada Proprietária</label>
-                <select value={editCompanyId} onChange={e => setEditCompanyId(e.target.value)} required>
+                <select 
+                  value={editCompanyId} 
+                  onChange={e => {
+                    const compId = e.target.value;
+                    setEditCompanyId(compId);
+                    const comp = companies.find(c => c.id === compId);
+                    if (comp && comp.fixed_team_id) {
+                      setEditTeamId(comp.fixed_team_id);
+                    } else {
+                      setEditTeamId('');
+                    }
+                  }} 
+                  required
+                >
                   <option value="">-- Selecione a Empresa Contratada --</option>
                   {companies.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -2332,6 +2351,15 @@ Assistente IA:`;
               <div>
                 <label>CNPJ (Opcional)</label>
                 <input type="text" value={editCnpj} onChange={e => setEditCnpj(e.target.value)} />
+              </div>
+              <div>
+                <label>Equipe Fixa Vinculada (Opcional)</label>
+                <select value={editFixedTeamId} onChange={e => setEditFixedTeamId(e.target.value)}>
+                  <option value="">-- Nenhuma Equipe Fixa --</option>
+                  {teams.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
               </div>
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Salvar Alterações</button>
@@ -3044,6 +3072,14 @@ Assistente IA:`;
                       <div>
                         <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{c.name}</h4>
                         <p style={{ fontSize: '0.8rem', color: '#94a3b8' }}>CNPJ: {c.cnpj || 'Não informado'}</p>
+                        {(() => {
+                          const fixedTeam = teams.find(t => t.id === c.fixed_team_id);
+                          return (
+                            <p style={{ fontSize: '0.80rem', color: '#06b6d4', marginTop: '4px', fontWeight: 500 }}>
+                              Equipe Fixa: {fixedTeam ? fixedTeam.name : 'Nenhuma'}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', flexWrap: 'wrap' }}>
@@ -3622,7 +3658,20 @@ Assistente IA:`;
                   </div>
                   <div>
                     <label>Empresa Contratada Proprietária</label>
-                    <select value={newProjCompanyId} onChange={e => setNewProjCompanyId(e.target.value)} required>
+                    <select 
+                      value={newProjCompanyId} 
+                      onChange={e => {
+                        const compId = e.target.value;
+                        setNewProjCompanyId(compId);
+                        const comp = companies.find(c => c.id === compId);
+                        if (comp && comp.fixed_team_id) {
+                          setNewProjTeamId(comp.fixed_team_id);
+                        } else {
+                          setNewProjTeamId('');
+                        }
+                      }} 
+                      required
+                    >
                       <option value="">-- Selecione a Empresa Contratada --</option>
                       {companies.map(c => (
                         <option key={c.id} value={c.id}>{c.name}</option>
@@ -3742,6 +3791,15 @@ Assistente IA:`;
                   <div>
                     <label>CNPJ (Opcional)</label>
                     <input type="text" value={newCompanyCnpj} onChange={e => setNewCompanyCnpj(e.target.value)} placeholder="Ex: 00.000.000/0001-00" />
+                  </div>
+                  <div>
+                    <label>Equipe Fixa Vinculada (Opcional)</label>
+                    <select value={newCompanyFixedTeamId} onChange={e => setNewCompanyFixedTeamId(e.target.value)}>
+                      <option value="">-- Nenhuma Equipe Fixa --</option>
+                      {teams.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Empresa Contratada</button>
                 </form>
