@@ -102,6 +102,26 @@ export default function App() {
     }
   };
 
+  const scrollToTeam = (teamId) => {
+    const container = teamCarouselRef.current;
+    if (!container) return;
+    const card = container.querySelector(`[data-team-id="${teamId}"]`);
+    if (!card) return;
+    
+    const cardCenter = card.offsetLeft + card.clientWidth / 2;
+    const containerCenterOffset = container.clientWidth / 2;
+    const targetScrollLeft = cardCenter - containerCenterOffset;
+    
+    container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+  };
+
+  const centerElementInViewport = (elementId) => {
+    const el = document.getElementById(elementId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
   // S-Curve states
   const [sCurveProjId, setSCurveProjId] = useState('');
   const [sCurveData, setSCurveData] = useState([]);
@@ -3163,10 +3183,12 @@ Assistente IA:`;
                       return (
                         <div 
                           key={t.id} 
+                          data-team-id={t.id}
                           onClick={() => {
                             const newTeamId = isSelected ? '' : t.id;
                             setSelectedCascadeTeamId(newTeamId);
                             if (newTeamId) {
+                              scrollToTeam(t.id);
                               const linkedComps = companies.filter(c => c.fixed_team_id === newTeamId);
                               if (linkedComps.length > 0) {
                                 setSelectedCascadeCompanyId(linkedComps[0].id);
@@ -3174,9 +3196,13 @@ Assistente IA:`;
                                   if (companyCarouselRef.current) {
                                     companyCarouselRef.current.scrollTo({ left: 0, behavior: 'auto' });
                                   }
-                                }, 100);
+                                  centerElementInViewport('cascade-companies-section');
+                                }, 150);
                               } else {
                                 setSelectedCascadeCompanyId('');
+                                setTimeout(() => {
+                                  centerElementInViewport('cascade-companies-section');
+                                }, 150);
                               }
                             } else {
                               setSelectedCascadeCompanyId('');
@@ -3225,7 +3251,7 @@ Assistente IA:`;
               </div>
 
               {/* SECTION 2: LINKED COMPANIES */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
+              <div id="cascade-companies-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
                 {!selectedCascadeTeamId ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', background: 'rgba(255,255,255,0.01)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.05)' }}>
                     <Building size={32} style={{ color: '#94a3b8', marginBottom: '8px', opacity: 0.5 }} />
@@ -3295,6 +3321,9 @@ Assistente IA:`;
                                   onClick={() => {
                                     setSelectedCascadeCompanyId(c.id);
                                     scrollToCompany(c.id);
+                                    setTimeout(() => {
+                                      centerElementInViewport('cascade-technicians-section');
+                                    }, 150);
                                   }}
                                   className={`glass-panel cascade-card ${isSelected ? 'selected' : selectedCascadeCompanyId ? 'inactive' : ''}`}
                                   style={{ 
@@ -3344,7 +3373,7 @@ Assistente IA:`;
               </div>
 
               {/* SECTION 3: LINKED TECHNICIANS */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
+              <div id="cascade-technicians-section" style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '24px' }}>
                 {!selectedCascadeCompanyId ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', background: 'rgba(255,255,255,0.01)', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.05)' }}>
                     <UserCheck size={32} style={{ color: '#94a3b8', marginBottom: '8px', opacity: 0.5 }} />
