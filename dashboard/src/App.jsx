@@ -724,6 +724,30 @@ export default function App() {
     }
   };
 
+  const handleSendTestMessage = async (tech) => {
+    if (!tech.telegram_chat_id) {
+      showToast('Este técnico não possui um Telegram Chat ID cadastrado!', 'danger');
+      return;
+    }
+    
+    showToast('Enviando mensagem de teste...');
+    try {
+      const { data, error } = await supabase.functions.invoke('telegram-bot', {
+        body: {
+          action: 'send_test',
+          chat_id: tech.telegram_chat_id,
+          text: `⚡ *Teste de Conexão ElevateSync*\n\nOlá *${tech.full_name}*!\n\nEste é um teste de integração de mensagens do painel administrativo. O seu bot do Telegram está configurado corretamente com o Chat ID \`${tech.telegram_chat_id}\`!`
+        }
+      });
+
+      if (error) throw error;
+      showToast('Mensagem de teste enviada com sucesso!');
+    } catch (err) {
+      console.error('Erro ao enviar mensagem de teste:', err);
+      showToast('Erro ao enviar mensagem de teste: ' + err.message, 'danger');
+    }
+  };
+
   const handleDeleteCompany = async (id) => {
     if (!window.confirm('Tem certeza de que deseja excluir esta empresa contratada? As equipes dela serão excluídas, os técnicos serão desvinculados e as obras associadas ficarão sem empresa contratada.')) return;
     const { error } = await supabase.from('companies').delete().eq('id', id);
@@ -2783,6 +2807,13 @@ Assistente IA:`;
                             className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
                           >
                             Excluir
+                          </button>
+                          <button 
+                            onClick={() => handleSendTestMessage(tech)} 
+                            className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #10b981', color: '#10b981', marginTop: '4px' }}
+                          >
+                            <Send size={12} />
+                            Testar Bot Telegram
                           </button>
                           <button 
                             onClick={() => handleOpenReportModal('tech', tech)} 

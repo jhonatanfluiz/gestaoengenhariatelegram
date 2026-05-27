@@ -33,13 +33,40 @@ interface TelegramUpdate {
   };
 }
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 Deno.serve(async (req) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const update: TelegramUpdate = await req.json();
+    const body = await req.json();
+    
+    // Check if it's a custom admin action from the dashboard
+    if (body.action === 'send_test') {
+      const { chat_id, text } = body;
+      if (!chat_id) {
+        return new Response(JSON.stringify({ error: 'Missing chat_id' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400,
+        });
+      }
+      await sendTelegram('sendMessage', {
+        chat_id: String(chat_id),
+        text: text || '⚡ *Teste de Conexão*\n\nSeu Chat ID do Telegram foi configurado com sucesso no painel ElevateSync!',
+        parse_mode: 'Markdown',
+      });
+      return new Response(JSON.stringify({ ok: true, message: 'Test message sent' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
+    const update: TelegramUpdate = body;
     console.log('Received Telegram Update:', JSON.stringify(update));
 
     if (update.message) {
@@ -49,13 +76,13 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ ok: true }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
   } catch (error) {
     console.error('Error processing update:', error);
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
   }
