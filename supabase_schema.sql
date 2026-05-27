@@ -471,10 +471,10 @@ $$ LANGUAGE plpgsql;
 CREATE EXTENSION IF NOT EXISTS pg_net;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
--- Agendamento de Lembretes Diários (Todos os dias às 09:00 UTC / 06:00 Horário de Brasília)
+-- Agendamento de Lembretes Diários (Todos os dias às 10:00 UTC / 07:00 Horário de Brasília)
 SELECT cron.schedule(
   'daily-telegram-reminders',
-  '0 9 * * *',
+  '0 10 * * *',
   $$ SELECT net.http_post(
        url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
        body := '{"action": "trigger_reminders", "frequency": "daily"}'::jsonb
@@ -482,10 +482,10 @@ SELECT cron.schedule(
   $$
 );
 
--- Agendamento de Lembretes Semanais (Toda segunda-feira às 09:00 UTC / 06:00 Horário de Brasília)
+-- Agendamento de Lembretes Semanais (Toda segunda-feira às 10:00 UTC / 07:00 Horário de Brasília)
 SELECT cron.schedule(
   'weekly-telegram-reminders',
-  '0 9 * * 1',
+  '0 10 * * 1',
   $$ SELECT net.http_post(
        url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
        body := '{"action": "trigger_reminders", "frequency": "weekly"}'::jsonb
@@ -493,10 +493,10 @@ SELECT cron.schedule(
   $$
 );
 
--- Agendamento de Lembretes Mensais (Todo dia 1º de cada mês às 09:00 UTC / 06:00 Horário de Brasília)
+-- Agendamento de Lembretes Mensais (Todo dia 1º de cada mês às 10:00 UTC / 07:00 Horário de Brasília)
 SELECT cron.schedule(
   'monthly-telegram-reminders',
-  '0 9 1 * *',
+  '0 10 1 * *',
   $$ SELECT net.http_post(
        url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
        body := '{"action": "trigger_reminders", "frequency": "monthly"}'::jsonb
