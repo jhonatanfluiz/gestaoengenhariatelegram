@@ -14,6 +14,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function App() {
   const [session, setSession] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -177,6 +178,11 @@ export default function App() {
   const [newTeamName, setNewTeamName] = useState('');
   const [newTeamCompanyId, setNewTeamCompanyId] = useState('');
 
+  const [newManagerName, setNewManagerName] = useState('');
+  const [newManagerEmail, setNewManagerEmail] = useState('');
+  const [newManagerPassword, setNewManagerPassword] = useState('');
+  const [newManagerAccessLevel, setNewManagerAccessLevel] = useState('restricted');
+
   const [msgNotification, setMsgNotification] = useState(null);
 
   // Auto-calculate deadline to start_date + 60 days on change
@@ -211,11 +217,22 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setLoading(false);
+      if (session) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setUserProfile(null);
+        setLoading(false);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setUserProfile(null);
+        setLoading(false);
+      }
     });
 
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -234,12 +251,42 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const fetchUserProfile = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (error) throw error;
+      
+      if (!data) {
+        console.warn('Profile not found for authenticated user:', userId);
+        showToast('Perfil de usuário não encontrado. Faça cadastro primeiro.', 'danger');
+        await supabase.auth.signOut();
+        setSession(null);
+        setUserProfile(null);
+      } else {
+        setUserProfile(data);
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+      showToast('Erro ao carregar perfil de usuário.', 'danger');
+      await supabase.auth.signOut();
+      setSession(null);
+      setUserProfile(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch initial data
   useEffect(() => {
-    if (session) {
+    if (session && userProfile) {
       fetchDashboardData();
     }
-  }, [session]);
+  }, [session, userProfile]);
 
   // Real-time PostgreSQL changes subscription
   useEffect(() => {
@@ -283,9 +330,11 @@ export default function App() {
 
   const fetchDashboardData = async () => {
     // 1. Fetch pre-calculated project metrics from view
-    const { data: projs, error: err1 } = await supabase
-      .from('vw_looker_studio_metrics')
-      .select('*');
+    let projQuery = supabase.from('vw_looker_studio_metrics').select('*');
+    if (userProfile && userProfile.role === 'manager' && userProfile.access_level === 'restricted') {
+      projQuery = projQuery.eq('assigned_manager_id', userProfile.id);
+    }
+    const { data: projs, error: err1 } = await projQuery;
 
     if (err1) console.error(err1);
     else {
@@ -344,22 +393,34 @@ export default function App() {
     else setPhasesList(phs || []);
 
     // 7. Fetch all audit logs
-    const { data: logs, error: err7 } = await supabase
-      .from('change_logs')
-      .select(`
-        *,
-        changed_by_profile:profiles(full_name)
-      `)
-      .order('changed_at', { ascending: false })
-      .limit(50);
+    let logsQuery = supabase.from('change_logs').select(`
+      *,
+      changed_by_profile:profiles(full_name)
+    `);
+    if (userProfile && userProfile.role === 'manager' && userProfile.access_level === 'restricted') {
+      const assignedProjIds = projs ? projs.map(p => p.project_id) : [];
+      if (assignedProjIds.length > 0) {
+        logsQuery = logsQuery.in('record_id', assignedProjIds);
+      } else {
+        logsQuery = logsQuery.eq('record_id', '00000000-0000-0000-0000-000000000000');
+      }
+    }
+    const { data: logs, error: err7 } = await logsQuery.order('changed_at', { ascending: false }).limit(50);
 
     if (err7) console.error(err7);
     else setAllLogs(logs || []);
 
     // 8. Fetch Pending Rankings
-    const { data: rank, error: err8 } = await supabase
-      .from('vw_pending_ranking')
-      .select('*');
+    let rankQuery = supabase.from('vw_pending_ranking').select('*');
+    if (userProfile && userProfile.role === 'manager' && userProfile.access_level === 'restricted') {
+      const assignedProjIds = projs ? projs.map(p => p.project_id) : [];
+      if (assignedProjIds.length > 0) {
+        rankQuery = rankQuery.in('project_id', assignedProjIds);
+      } else {
+        rankQuery = rankQuery.eq('project_id', '00000000-0000-0000-0000-000000000000');
+      }
+    }
+    const { data: rank, error: err8 } = await rankQuery;
 
     if (err8) console.error(err8);
     else setPendingRankings(rank || []);
@@ -444,17 +505,42 @@ export default function App() {
     setLoading(true);
 
     if (isSignUp) {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        setAuthError(error.message);
-      } else {
-        await supabase.from('profiles').insert({
-          id: data.user.id,
-          auth_user_id: data.user.id,
-          full_name: 'Gestor Administrativo',
-          role: 'manager'
-        });
-        showToast('Cadastro de gestor efetuado!');
+      try {
+        // Query master count
+        const { count, error: countErr } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'master');
+
+        if (countErr) throw countErr;
+
+        if (count !== null && count >= 2) {
+          setAuthError('O limite de 2 contas Master já foi atingido. Não é possível criar novos cadastros Master.');
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) {
+          setAuthError(error.message);
+        } else {
+          if (data?.user) {
+            await supabase.from('profiles').insert({
+              id: data.user.id,
+              auth_user_id: data.user.id,
+              full_name: 'Gestor Master',
+              role: 'master',
+              access_level: 'unrestricted'
+            });
+            showToast('Cadastro Master efetuado com sucesso! Faça login.');
+            setIsSignUp(false);
+          } else {
+            showToast('Cadastro solicitado, verifique seu e-mail se necessário.');
+          }
+        }
+      } catch (err) {
+        console.error('Error in signup check:', err);
+        setAuthError('Erro ao verificar limite de administradores: ' + err.message);
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -570,6 +656,107 @@ export default function App() {
       setNewTechTelegram('');
       setNewTechCompanyId('');
       setActiveTab('teams'); // Go to teams tab to view teammates
+      fetchDashboardData();
+    }
+  };
+
+  // Auto-set assigned manager for manager accounts
+  useEffect(() => {
+    if (userProfile && userProfile.role === 'manager') {
+      setNewProjManagerId(userProfile.id);
+    } else {
+      setNewProjManagerId('');
+    }
+  }, [userProfile]);
+
+  const handleCreateManager = async (e) => {
+    e.preventDefault();
+    if (!newManagerName || !newManagerEmail || !newManagerPassword) {
+      showToast('Preencha os campos obrigatórios.', 'danger');
+      return;
+    }
+
+    try {
+      showToast('Cadastrando novo gestor...');
+      
+      // Secondary client configured without session persistence
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false
+        }
+      });
+
+      const { data, error: signUpError } = await authClient.auth.signUp({
+        email: newManagerEmail,
+        password: newManagerPassword
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      if (!data.user) {
+        throw new Error('Falha ao criar usuário de autenticação do gestor.');
+      }
+
+      const newUserId = data.user.id;
+
+      // Insert profile details using current master session
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: newUserId,
+          auth_user_id: newUserId,
+          full_name: newManagerName,
+          role: 'manager',
+          access_level: newManagerAccessLevel
+        });
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      showToast(`Gestor "${newManagerName}" cadastrado com sucesso!`);
+      setNewManagerName('');
+      setNewManagerEmail('');
+      setNewManagerPassword('');
+      setNewManagerAccessLevel('restricted');
+      fetchDashboardData();
+    } catch (err) {
+      console.error('Error creating manager:', err);
+      showToast('Erro ao criar gestor: ' + err.message, 'danger');
+    }
+  };
+
+  const handleToggleManagerAccess = async (mgr) => {
+    const nextAccess = mgr.access_level === 'unrestricted' ? 'restricted' : 'unrestricted';
+    const { error } = await supabase
+      .from('profiles')
+      .update({ access_level: nextAccess })
+      .eq('id', mgr.id);
+
+    if (error) {
+      showToast('Erro ao atualizar acesso do gestor: ' + error.message, 'danger');
+    } else {
+      showToast(`Acesso de "${mgr.full_name}" alterado para ${nextAccess === 'unrestricted' ? 'Irrestrito' : 'Restrito'}!`);
+      fetchDashboardData();
+    }
+  };
+
+  const handleDeleteManager = async (mgrId) => {
+    if (!window.confirm('Tem certeza de que deseja excluir este gestor? O acesso dele será bloqueado imediatamente.')) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', mgrId);
+
+    if (error) {
+      showToast('Erro ao excluir gestor: ' + error.message, 'danger');
+    } else {
+      showToast('Gestor excluído com sucesso!');
       fetchDashboardData();
     }
   };
@@ -2357,13 +2544,13 @@ Assistente IA:`;
             )}
 
             <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '8px' }}>
-              {isSignUp ? 'Criar Cadastro Admin' : 'Entrar no Sistema'}
+              {isSignUp ? 'Criar Conta Master' : 'Entrar no Sistema'}
             </button>
           </form>
 
           <div style={{ textAlign: 'center', marginTop: '24px' }}>
             <button onClick={() => setIsSignUp(!isSignUp)} style={{ background: 'none', border: 'none', color: '#06b6d4', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}>
-              {isSignUp ? 'Já possui conta? Fazer Login' : 'Criar nova conta de Gestor'}
+              {isSignUp ? 'Já possui conta? Fazer Login' : 'Criar nova conta Master'}
             </button>
           </div>
         </div>
@@ -2396,10 +2583,20 @@ Assistente IA:`;
             <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Monitoramento de Instalações de Elevadores Comerciais</p>
           </div>
         </div>
-        <button onClick={handleLogOut} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
-          <LogOut size={16} />
-          Sair
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {userProfile && (
+            <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>
+              <span style={{ fontWeight: 600, display: 'block', color: '#ffffff' }}>{userProfile.full_name}</span>
+              <span style={{ color: '#06b6d4', fontSize: '0.75rem', fontWeight: 600 }}>
+                {userProfile.role === 'master' ? '👑 Master Admin' : `Gestor (${userProfile.access_level === 'unrestricted' ? 'Irrestrito' : 'Restrito'})`}
+              </span>
+            </div>
+          )}
+          <button onClick={handleLogOut} className="btn btn-secondary" style={{ padding: '8px 12px', fontSize: '0.85rem' }}>
+            <LogOut size={16} />
+            Sair
+          </button>
+        </div>
       </header>
 
       {/* Detailed Project View */}
@@ -3398,6 +3595,14 @@ Assistente IA:`;
                 >
                   Nova Empresa Contratada
                 </button>
+                {userProfile?.role === 'master' && (
+                  <button 
+                    onClick={() => setRegSubTab('manager')} 
+                    style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'manager' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'manager' ? '2px solid #06b6d4' : 'none' }}
+                  >
+                    Novo Gestor de Obra
+                  </button>
+                )}
               </div>
 
               {/* Form Renderers */}
@@ -3432,7 +3637,11 @@ Assistente IA:`;
                   </div>
                   <div>
                     <label>Gestor Técnico Responsável (Obra)</label>
-                    <select value={newProjManagerId} onChange={e => setNewProjManagerId(e.target.value)}>
+                    <select 
+                      value={newProjManagerId} 
+                      onChange={e => setNewProjManagerId(e.target.value)}
+                      disabled={userProfile?.role === 'manager'}
+                    >
                       <option value="">-- Selecione o Gestor --</option>
                       {managers.map(m => (
                         <option key={m.id} value={m.id}>{m.full_name}</option>
@@ -3533,6 +3742,87 @@ Assistente IA:`;
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Empresa Contratada</button>
                 </form>
+              )}
+
+              {regSubTab === 'manager' && userProfile?.role === 'master' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                  <form onSubmit={handleCreateManager} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+                    <h4 style={{ marginBottom: '8px' }}>Cadastrar Novo Gestor de Obra</h4>
+                    <div>
+                      <label>Nome Completo do Gestor</label>
+                      <input type="text" value={newManagerName} onChange={e => setNewManagerName(e.target.value)} required placeholder="Ex: Carlos Eduardo" />
+                    </div>
+                    <div>
+                      <label>E-mail do Gestor</label>
+                      <input type="email" value={newManagerEmail} onChange={e => setNewManagerEmail(e.target.value)} required placeholder="Ex: carlos@empresa.com" />
+                    </div>
+                    <div>
+                      <label>Senha Provisória</label>
+                      <input type="password" value={newManagerPassword} onChange={e => setNewManagerPassword(e.target.value)} required placeholder="Mínimo 6 caracteres" />
+                    </div>
+                    <div>
+                      <label>Classificação de Acesso</label>
+                      <select value={newManagerAccessLevel} onChange={e => setNewManagerAccessLevel(e.target.value)} required>
+                        <option value="restricted">Restrito (Acesso apenas a obras vinculadas a ele)</option>
+                        <option value="unrestricted">Irrestrito (Acesso a todas as obras do sistema)</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Gestor</button>
+                  </form>
+
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '24px' }}>
+                    <h4 style={{ marginBottom: '16px' }}>Gestores de Obra Cadastrados</h4>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
+                            <th style={{ padding: '12px 8px' }}>Nome Completo</th>
+                            <th style={{ padding: '12px 8px' }}>Nível de Acesso</th>
+                            <th style={{ padding: '12px 8px' }}>Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {managers.length === 0 ? (
+                            <tr>
+                              <td colSpan="3" style={{ padding: '16px 8px', color: '#94a3b8', textAlign: 'center' }}>Nenhum gestor cadastrado.</td>
+                            </tr>
+                          ) : (
+                            managers.map(mgr => (
+                              <tr key={mgr.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '12px 8px', fontWeight: 500 }}>{mgr.full_name}</td>
+                                <td style={{ padding: '12px 8px' }}>
+                                  <span style={{ 
+                                    padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600,
+                                    background: mgr.access_level === 'unrestricted' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                                    color: mgr.access_level === 'unrestricted' ? '#10b981' : '#f59e0b'
+                                  }}>
+                                    {mgr.access_level === 'unrestricted' ? 'Irrestrito' : 'Restrito'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 8px', display: 'flex', gap: '8px' }}>
+                                  <button 
+                                    onClick={() => handleToggleManagerAccess(mgr)} 
+                                    className="btn"
+                                    style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)', cursor: 'pointer' }}
+                                  >
+                                    Alternar Acesso
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteManager(mgr.id)} 
+                                    className="btn"
+                                    style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}
+                                  >
+                                    Excluir
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

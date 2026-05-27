@@ -42,7 +42,8 @@ CREATE TABLE public.profiles (
     full_name TEXT NOT NULL,
     telegram_chat_id TEXT UNIQUE,
     whatsapp_number TEXT UNIQUE,
-    role TEXT NOT NULL CHECK (role IN ('manager', 'technician')),
+    role TEXT NOT NULL CHECK (role IN ('master', 'manager', 'technician')),
+    access_level TEXT CHECK (access_level IN ('restricted', 'unrestricted')) DEFAULT 'restricted',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -336,6 +337,24 @@ FOR EACH ROW EXECUTE FUNCTION public.fn_audit_log_changes();
 CREATE TRIGGER tr_audit_progress
 AFTER INSERT OR UPDATE OR DELETE ON public.project_phases_progress
 FOR EACH ROW EXECUTE FUNCTION public.fn_audit_log_changes();
+
+-- Restrição: no máximo 2 cadastros Master
+CREATE OR REPLACE FUNCTION public.check_max_masters()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role = 'master' THEN
+    IF (SELECT COUNT(*) FROM public.profiles WHERE role = 'master' AND id <> NEW.id) >= 2 THEN
+      RAISE EXCEPTION 'O limite máximo de 2 cadastros Master já foi atingido.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_check_max_masters
+BEFORE INSERT OR UPDATE OF role ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.check_max_masters();
 
 -- =====================================================================
 -- 6. POLÍCIES DE SEGURANÇA RLS (ROW LEVEL SECURITY)
