@@ -1493,7 +1493,7 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
       const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Previsão indisponível.';
       
       // Update local storage and state
-      updateProjectForecast(activeProject.id, text);
+      updateProjectForecast(activeProject.project_id, text);
       showToast('Previsão IA atualizada com sucesso!', 'success');
       
       // Save key if it worked
@@ -1937,9 +1937,9 @@ Assistente IA:`;
                   </div>
                 ) : (
                   <>
-                    {projectForecast[activeProject.id] ? (
+                    {projectForecast[activeProject.project_id] ? (
                       <div style={{ fontSize: '0.8rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '110px', overflowY: 'auto' }}>
-                        {renderMarkdown(projectForecast[activeProject.id])}
+                        {renderMarkdown(projectForecast[activeProject.project_id])}
                       </div>
                     ) : (
                       <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0' }}>Nenhuma estimativa de IA gerada ainda.</p>
