@@ -715,6 +715,9 @@ export default function App() {
         });
 
       if (profileError) {
+        if (profileError.message.includes('profiles_auth_user_id_fkey') || profileError.code === '23503') {
+          throw new Error('Este e-mail já está cadastrado no sistema.');
+        }
         throw profileError;
       }
 
