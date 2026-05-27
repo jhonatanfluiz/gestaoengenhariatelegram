@@ -4,6 +4,8 @@ let BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
 // Limpa parênteses, colchetes ou espaços adicionados acidentalmente
 BOT_TOKEN = BOT_TOKEN.replace(/[()\[\]]/g, '').trim();
 
+console.log('BOT_TOKEN loaded in Deno:', BOT_TOKEN ? `${BOT_TOKEN.slice(0, 5)}...${BOT_TOKEN.slice(-4)} (length: ${BOT_TOKEN.length})` : 'EMPTY');
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
 
