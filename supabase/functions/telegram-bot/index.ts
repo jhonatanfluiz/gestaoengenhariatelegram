@@ -1,8 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 
 let BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') || Deno.env.get('telegram_bot_token') || '';
-// Limpa parênteses, colchetes ou espaços adicionados acidentalmente
-BOT_TOKEN = BOT_TOKEN.replace(/[()\[\]]/g, '').trim();
+// Limpa parênteses, colchetes, aspas ou espaços adicionados acidentalmente
+BOT_TOKEN = BOT_TOKEN.replace(/[()\[\]'"]/g, '').trim();
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -48,8 +48,52 @@ Deno.serve(async (req) => {
 
   try {
     console.log('BOT_TOKEN loaded in Deno:', BOT_TOKEN ? `${BOT_TOKEN.slice(0, 5)}...${BOT_TOKEN.slice(-4)} (length: ${BOT_TOKEN.length})` : 'EMPTY');
-    const body = await req.json();
     
+    // Safe parse JSON body
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.warn('Failed to parse request JSON body:', e.message);
+    }
+    
+    // Check if it's a debug request to test token and connectivity
+    if (body.action === 'debug_info') {
+      const rawUpper = Deno.env.get('TELEGRAM_BOT_TOKEN') || '';
+      const rawLower = Deno.env.get('telegram_bot_token') || '';
+      const sanitized = BOT_TOKEN;
+      
+      let telegramMe: any = null;
+      let telegramError: string | null = null;
+      try {
+        const testUrl = `https://api.telegram.org/bot${BOT_TOKEN}/getMe`;
+        const testResp = await fetch(testUrl, { method: 'GET' });
+        if (testResp.ok) {
+          telegramMe = await testResp.json();
+        } else {
+          telegramError = `Status: ${testResp.status} - ${await testResp.text()}`;
+        }
+      } catch (err) {
+        telegramError = err.message;
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        env: {
+          TELEGRAM_BOT_TOKEN_raw_upper: rawUpper ? `${rawUpper.slice(0, 5)}...${rawUpper.slice(-4)} (len: ${rawUpper.length})` : 'EMPTY',
+          telegram_bot_token_raw_lower: rawLower ? `${rawLower.slice(0, 5)}...${rawLower.slice(-4)} (len: ${rawLower.length})` : 'EMPTY',
+          sanitized_token: sanitized ? `${sanitized.slice(0, 5)}...${sanitized.slice(-4)} (len: ${sanitized.length})` : 'EMPTY',
+          SUPABASE_URL: SUPABASE_URL || 'EMPTY',
+          SUPABASE_SERVICE_ROLE_KEY_present: !!SUPABASE_SERVICE_ROLE_KEY,
+        },
+        telegram_get_me: telegramMe,
+        telegram_error: telegramError,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
     // Check if it's a custom admin action from the dashboard
     if (body.action === 'send_test') {
       const { chat_id, text } = body;
@@ -94,13 +138,24 @@ Deno.serve(async (req) => {
 
 async function sendTelegram(method: string, body: object) {
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/${method}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    console.error(`Telegram API error on ${method}:`, await response.text());
+  console.log(`Sending Telegram request to method: ${method}...`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    console.log(`Telegram API response status for ${method}:`, response.status);
+    if (!response.ok) {
+      console.error(`Telegram API error on ${method}:`, await response.text());
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.error(`Fetch error on Telegram ${method}:`, err.message);
   }
 }
 
