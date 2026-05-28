@@ -21,6 +21,7 @@ export default function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [authError, setAuthError] = useState(null);
+  const [emailErrorText, setEmailErrorText] = useState('');
 
   // View Only state
   const [viewOnlyProjectId] = useState(() => new URLSearchParams(window.location.search).get('view_report'));
@@ -639,6 +640,18 @@ export default function App() {
     }).sort((a, b) => new Date(a.week).getTime() - new Date(b.week).getTime());
 
     setSCurveData(formattedSCurve);
+  };
+
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setEmail(val);
+    
+    // Check for uppercase, spaces, accented chars, or cedilla
+    if (/[A-ZÀ-ÿÇç\s]/.test(val)) {
+      setEmailErrorText('Digite e-mail válido (minúsculo, sem acentos)');
+    } else {
+      setEmailErrorText('');
+    }
   };
 
   const handleAuth = async (e) => {
@@ -3026,7 +3039,19 @@ Assistente IA:`;
               </p>
               <div>
                 <label>E-mail do Gestor</label>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="gestor@empresa.com" />
+                <input 
+                  type="email" 
+                  value={email} 
+                  onChange={handleEmailChange} 
+                  required 
+                  placeholder="gestor@empresa.com" 
+                  style={{ borderColor: emailErrorText ? '#ef4444' : undefined }}
+                />
+                {emailErrorText && (
+                  <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
+                    {emailErrorText}
+                  </span>
+                )}
               </div>
 
               {authError && (
@@ -3050,7 +3075,19 @@ Assistente IA:`;
               <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div>
                   <label>E-mail do Gestor</label>
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="gestor@empresa.com" />
+                  <input 
+                    type="email" 
+                    value={email} 
+                    onChange={handleEmailChange} 
+                    required 
+                    placeholder="gestor@empresa.com" 
+                    style={{ borderColor: emailErrorText ? '#ef4444' : undefined }}
+                  />
+                  {emailErrorText && (
+                    <span style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>
+                      {emailErrorText}
+                    </span>
+                  )}
                 </div>
 
                 <div>
