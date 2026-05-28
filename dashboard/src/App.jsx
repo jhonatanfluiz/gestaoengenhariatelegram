@@ -2815,69 +2815,7 @@ Assistente IA:`;
             </p>
           </div>
 
-          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
-            <div>
-              <h3 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#06b6d4', margin: '0 0 4px' }}>{progressPercent}%</h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Avanço Total</p>
-            </div>
-            <div style={{ width: '1px', height: '50px', background: 'rgba(255,255,255,0.1)' }}></div>
-            <div>
-              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/20</span></h3>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Fases Concluídas</p>
-            </div>
-          </div>
-
-          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> Data de Início:</span>
-                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{startDateObj.toLocaleDateString('pt-BR')}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Flag size={14} /> Prazo Contratual:</span>
-                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{deadlineDateObj.toLocaleDateString('pt-BR')}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> Dias Corridos:</span>
-                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{computedElapsedDays} dias</span>
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem' }}>
-                <span style={{ color: '#94a3b8' }}>Avanço Esperado: <strong style={{ color: '#f59e0b' }}>{expectedProgress}%</strong></span>
-                <span style={{ color: '#94a3b8' }}>Avanço Realizado: <strong style={{ color: '#06b6d4' }}>{progressPercent}%</strong></span>
-              </div>
-              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', overflow: 'hidden', display: 'flex', position: 'relative' }}>
-                <div style={{ width: `${expectedProgress}%`, background: 'rgba(245, 158, 11, 0.4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRight: '2px solid #f59e0b', zIndex: 1 }}></div>
-                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, zIndex: 2, borderRadius: progressPercent < expectedProgress ? '0 8px 8px 0' : '0' }}></div>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
-              <span style={{ color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}><Brain size={14} /> Previsão Estimada (IA):</span>
-              <span style={{ color: getProjectLinearEstimate({ ...viewOnlyProject, overall_progress_percent: progressPercent, days_elapsed: computedElapsedDays }).isDelayed ? '#ef4444' : '#10b981', fontWeight: 600, textAlign: 'right' }}>
-                {getProjectLinearEstimate({ ...viewOnlyProject, overall_progress_percent: progressPercent, days_elapsed: computedElapsedDays }).text}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ minHeight: sCurveData && sCurveData.length > 0 ? '220px' : 'auto', width: '100%', marginTop: '10px' }}>
-            {renderSCurveSVG()}
-          </div>
-
-          {aiEstText && (
-            <div style={{ background: 'rgba(6,182,212,0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(6,182,212,0.1)' }}>
-              <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#06b6d4', marginBottom: '8px' }}>
-                <Brain size={16} /> Análise da IA
-              </strong>
-              <div style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.6, maxHeight: '300px', overflowY: 'auto' }}>
-                {renderMarkdown(aiEstText)}
-              </div>
-            </div>
-          )}
-
-          <div style={{ marginTop: '16px' }}>
+          <div style={{ marginBottom: '8px' }}>
             <button
               onClick={() => setShowMobileSchedule(!showMobileSchedule)}
               style={{
@@ -2944,6 +2882,68 @@ Assistente IA:`;
               </div>
             )}
           </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#06b6d4', margin: '0 0 4px' }}>{progressPercent}%</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Avanço Total</p>
+            </div>
+            <div style={{ width: '1px', height: '50px', background: 'rgba(255,255,255,0.1)' }}></div>
+            <div>
+              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/20</span></h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Fases Concluídas</p>
+            </div>
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> Data de Início:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{startDateObj.toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Flag size={14} /> Prazo Contratual:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{deadlineDateObj.toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> Dias Corridos:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{computedElapsedDays} dias</span>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem' }}>
+                <span style={{ color: '#94a3b8' }}>Avanço Esperado: <strong style={{ color: '#f59e0b' }}>{expectedProgress}%</strong></span>
+                <span style={{ color: '#94a3b8' }}>Avanço Realizado: <strong style={{ color: '#06b6d4' }}>{progressPercent}%</strong></span>
+              </div>
+              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', overflow: 'hidden', display: 'flex', position: 'relative' }}>
+                <div style={{ width: `${expectedProgress}%`, background: 'rgba(245, 158, 11, 0.4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRight: '2px solid #f59e0b', zIndex: 1 }}></div>
+                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, zIndex: 2, borderRadius: progressPercent < expectedProgress ? '0 8px 8px 0' : '0' }}></div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+              <span style={{ color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}><Brain size={14} /> Previsão Estimada (IA):</span>
+              <span style={{ color: getProjectLinearEstimate({ ...viewOnlyProject, overall_progress_percent: progressPercent, days_elapsed: computedElapsedDays }).isDelayed ? '#ef4444' : '#10b981', fontWeight: 600, textAlign: 'right' }}>
+                {getProjectLinearEstimate({ ...viewOnlyProject, overall_progress_percent: progressPercent, days_elapsed: computedElapsedDays }).text}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ minHeight: sCurveData && sCurveData.length > 0 ? '220px' : 'auto', width: '100%', marginTop: '10px' }}>
+            {renderSCurveSVG()}
+          </div>
+
+          {aiEstText && (
+            <div style={{ background: 'rgba(6,182,212,0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(6,182,212,0.1)' }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#06b6d4', marginBottom: '8px' }}>
+                <Brain size={16} /> Análise da IA
+              </strong>
+              <div style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.6, maxHeight: '300px', overflowY: 'auto' }}>
+                {renderMarkdown(aiEstText)}
+              </div>
+            </div>
+          )}
 
           <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
             <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
