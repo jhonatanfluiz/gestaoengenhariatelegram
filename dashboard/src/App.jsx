@@ -1859,6 +1859,79 @@ Assistente IA:`;
       return part;
     });
   };
+  const renderProjectSchedule = () => {
+    if (!activeProject) return null;
+    
+    const start = new Date(activeProject.start_date);
+    const end = new Date(activeProject.deadline_date);
+    const totalDays = Math.max(1, (end - start) / (1000 * 60 * 60 * 24));
+    const phaseCount = projectPhases.length || 20;
+    const daysPerPhase = totalDays / phaseCount;
+
+    return (
+      <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+        <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Calendar size={20} style={{ color: '#06b6d4' }} />
+          Cronograma Inteligente (Previsão de Prazos)
+        </h3>
+        
+        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px' }}>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+            Este cronograma é calculado automaticamente baseando-se na data de início prevista ({start.toLocaleDateString('pt-BR')}) e no prazo final acordado ({end.toLocaleDateString('pt-BR')}). Ele distribui o tempo ideal necessário para concluir cada fase dentro do prazo estimado.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {projectPhases.map((phase, index) => {
+            const phaseDate = new Date(start);
+            phaseDate.setDate(phaseDate.getDate() + Math.round(daysPerPhase * (index + 1)));
+            
+            const isLate = new Date() > phaseDate && phase.progress_percent < 100;
+            const isCompleted = phase.progress_percent === 100;
+            
+            let statusColor = '#94a3b8'; // default
+            if (isCompleted) statusColor = '#10b981'; // green
+            else if (isLate) statusColor = '#ef4444'; // red
+            else if (phase.started) statusColor = '#3b82f6'; // blue
+            
+            return (
+              <div key={phase.id} style={{ 
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                padding: '12px 16px', 
+                background: 'rgba(0,0,0,0.2)', 
+                borderRadius: '8px',
+                borderLeft: `4px solid ${statusColor}`
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                  <div style={{ 
+                    width: '32px', height: '32px', borderRadius: '50%', 
+                    background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: statusColor, fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0
+                  }}>
+                    {phase.phases.phase_number}
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', color: '#fff' }}>{phase.phases.name}</h4>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>{phase.phases.description}</p>
+                  </div>
+                </div>
+                
+                <div style={{ textAlign: 'right', minWidth: '150px' }}>
+                  <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: statusColor }}>
+                    Previsto até: {phaseDate.toLocaleDateString('pt-BR')}
+                  </p>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
+                    {isCompleted ? `Concluído (${phase.progress_percent}%)` : (phase.started ? `Em Andamento (${phase.progress_percent}%)` : 'Não Iniciado')}
+                    {isLate && !isCompleted && ' (Atrasado)'}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   const renderProjectReport = () => {
     if (!activeProject) return null;
@@ -2992,6 +3065,7 @@ Assistente IA:`;
             {[
               { id: 'phases', label: '📋 Fases da Obra' },
               { id: 'report', label: '📄 Relatório Técnico' },
+              { id: 'schedule', label: '📅 Cronograma' },
               { id: 'history', label: '🕒 Histórico & Logs' }
             ].map(tab => (
               <button 
@@ -3096,6 +3170,7 @@ Assistente IA:`;
           )}
 
           {projectSubTab === 'report' && renderProjectReport()}
+          {projectSubTab === 'schedule' && renderProjectSchedule()}
         </main>
       ) : (
         /* Standard Navigation Views */
