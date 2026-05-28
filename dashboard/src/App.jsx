@@ -2733,7 +2733,7 @@ Assistente IA:`;
 
       {/* Detailed Project View */}
       {activeProject ? (
-        <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <main style={{ padding: '0 16px 100px', display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} className="no-print">
             <button onClick={() => { setActiveProject(null); fetchDashboardData(); }} className="btn btn-secondary" style={{ padding: '8px 16px' }}>
               <ArrowLeft size={16} />
@@ -2932,7 +2932,7 @@ Assistente IA:`;
         </main>
       ) : (
         /* Standard Navigation Views */
-        <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <main style={{ padding: '0 16px 100px', display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
           
           {/* Main Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '4px', overflow: 'visible', position: 'relative', justifyContent: 'center', width: '100%' }} className="no-print">
