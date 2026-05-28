@@ -175,6 +175,7 @@ export default function App() {
   });
   const [forecastLoading, setForecastLoading] = useState(false);
   const [expandedAiEst, setExpandedAiEst] = useState(null); // { projectName, text }
+  const [expandedPhases, setExpandedPhases] = useState({});
 
   const updateProjectForecast = (projectId, text) => {
     setProjectForecast(prev => {
@@ -3808,13 +3809,28 @@ Assistente IA:`;
                             </div>
                           </div>
                           
-                          <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8', flex: 1, overflowY: 'auto', maxHeight: '150px' }}>
-                            <strong style={{ display: 'block', marginBottom: '8px', color: '#e2e8f0' }}>Fases Pendentes:</strong>
+                          <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8', flex: 1, overflowY: 'auto', maxHeight: expandedPhases[rank.project_id] ? '300px' : '150px', transition: 'max-height 0.3s' }}>
+                            <strong style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', color: '#e2e8f0' }}>
+                              Fases Pendentes:
+                              {rank.pending_phases_list && rank.pending_phases_list.split(', ').length > 2 && (
+                                <button 
+                                  onClick={() => setExpandedPhases(prev => ({ ...prev, [rank.project_id]: !prev[rank.project_id] }))}
+                                  style={{ background: 'rgba(6,182,212,0.1)', border: 'none', color: '#06b6d4', cursor: 'pointer', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px' }}
+                                >
+                                  {expandedPhases[rank.project_id] ? 'Recolher' : 'Expandir'}
+                                </button>
+                              )}
+                            </strong>
                             {rank.pending_phases_list ? (
                               <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                {rank.pending_phases_list.split(', ').map((phase, i) => (
+                                {rank.pending_phases_list.split(', ').slice(0, expandedPhases[rank.project_id] ? undefined : 2).map((phase, i) => (
                                   <li key={i}>{phase}</li>
                                 ))}
+                                {!expandedPhases[rank.project_id] && rank.pending_phases_list.split(', ').length > 2 && (
+                                  <li style={{ color: '#94a3b8', listStyle: 'none', marginLeft: '-16px', fontSize: '0.75rem', marginTop: '4px', fontStyle: 'italic' }}>
+                                    + {rank.pending_phases_list.split(', ').length - 2} outras fases ocultas...
+                                  </li>
+                                )}
                               </ul>
                             ) : (
                               <span>Nenhuma</span>
