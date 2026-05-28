@@ -2811,7 +2811,7 @@ Assistente IA:`;
             </div>
             <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0 0 4px', color: '#fff' }}>{viewOnlyProject.name}</h2>
             <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>
-              Relatório Restrito de Progresso
+              Relatório Restrito de Progresso <span style={{ color: '#06b6d4', fontSize: '0.7rem' }}>(V2)</span>
             </p>
           </div>
 
@@ -2862,7 +2862,7 @@ Assistente IA:`;
             </div>
           </div>
 
-          <div style={{ height: '220px', width: '100%', marginTop: '10px' }}>
+          <div style={{ minHeight: sCurveData && sCurveData.length > 0 ? '220px' : 'auto', width: '100%', marginTop: '10px' }}>
             {renderSCurveSVG()}
           </div>
 
