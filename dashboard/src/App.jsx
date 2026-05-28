@@ -2935,10 +2935,11 @@ Assistente IA:`;
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Main Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflow: 'visible', position: 'relative' }} className="no-print">
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '4px', overflow: 'visible', position: 'relative', justifyContent: 'center' }} className="no-print">
             {[
               { id: 'projects', label: 'Obras Comerciais' },
               { id: 's-curve', label: 'Curva S & Avanço' },
+              { id: 'ranking', label: '🏆 Ranking de Pendências' },
             ].map(tab => (
               <button 
                 key={tab.id}
@@ -2958,7 +2959,6 @@ Assistente IA:`;
                 { id: 'teams', label: 'Equipes Fixas & Técnicos' },
                 { id: 'companies', label: 'Empresas Contratadas' },
                 { id: 'phases', label: 'Checklists & Fases' },
-                { id: 'ranking', label: 'Ranking de Pendências' },
                 { id: 'history', label: 'Histórico & Auditoria' }
               ];
               const isCollapsedActive = collapsedTabs.some(t => t.id === activeTab);
