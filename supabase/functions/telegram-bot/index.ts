@@ -789,7 +789,41 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
           .update({ status: 'completed' })
           .eq('id', projectId);
 
-        nextMsg = `\n\n🎉 **Instalação Comercial Concluída!** Todas as 20 fases foram finalizadas e registradas. Elevador pronto para comissionamento e entrega técnica!`;
+        let aiMessage = '';
+        try {
+          const geminiKey = Deno.env.get('GEMINI_API_KEY');
+          if (geminiKey) {
+            log('Generating AI congratulatory/motivational message...');
+            // Fetch project details for context
+            const { data: projDetails } = await supabase
+              .from('projects')
+              .select('*')
+              .eq('id', projectId)
+              .single();
+              
+            const promptText = `O técnico finalizou o checklist da obra "${projDetails?.name || 'Projeto'}". Todas as 20 fases foram concluídas ou atualizadas hoje. Escreva uma mensagem muito curta e amigável (máximo 2 parágrafos pequenos) parabenizando a equipe pela conclusão do checklist e motivando-os para os próximos passos. Se o projeto estiver atrasado, seja encorajador. Se estiver no prazo, parabenize. Assine como "Seu Assistente IA".`;
+            
+            const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+            });
+            
+            if (aiResp.ok) {
+              const aiData = await aiResp.json();
+              if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+                aiMessage = `\n\n🤖 **Mensagem da IA:**\n${aiData.candidates[0].content.parts[0].text.trim()}`;
+              }
+            } else {
+              log('Error calling Gemini API:', await aiResp.text());
+            }
+          }
+        } catch (e) {
+          log('Error generating AI message:', e);
+        }
+
+        const reportUrl = `${Deno.env.get('FRONTEND_URL') || 'https://seu-dominio.com'}/?view_report=${projectId}`;
+        nextMsg = `\n\n🎉 **Checklist Concluído!** Todas as fases foram atualizadas.${aiMessage}\n\n📊 **Veja o seu relatório de progresso aqui:**\n${reportUrl}`;
       }
 
       await sendTelegram('sendMessage', {

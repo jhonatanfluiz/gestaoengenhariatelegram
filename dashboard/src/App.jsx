@@ -21,6 +21,12 @@ export default function App() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [authError, setAuthError] = useState(null);
 
+  // View Only state
+  const [viewOnlyProjectId] = useState(() => new URLSearchParams(window.location.search).get('view_report'));
+  const [viewOnlyProject, setViewOnlyProject] = useState(null);
+  const [viewOnlyPhases, setViewOnlyPhases] = useState([]);
+  const [viewOnlyLoading, setViewOnlyLoading] = useState(false);
+
   // Active view states: 'projects' | 'teams' | 'companies' | 'phases' | 'history' | 's-curve' | 'ranking' | 'new-registry'
   const [activeTab, setActiveTab] = useState('projects');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -2646,6 +2652,77 @@ Assistente IA:`;
   }
 
   // Not Logged In Screen
+  if (viewOnlyProjectId) {
+    if (viewOnlyLoading) {
+      return (
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '16px', minHeight: '100vh', background: '#020617' }}>
+          <div style={{ width: '40px', height: '40px', border: '3px solid rgba(6,182,212,0.2)', borderTopColor: '#06b6d4', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+        </div>
+      );
+    }
+    if (!viewOnlyProject) {
+      return (
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '16px', minHeight: '100vh', background: '#020617' }}>
+          <div className="glass-panel" style={{ padding: '32px', textAlign: 'center', color: '#f87171' }}>Obra não encontrada.</div>
+        </div>
+      );
+    }
+
+    const completedCount = viewOnlyPhases.filter(p => p.progress_percent === 100).length;
+    const progressPercent = Math.round((completedCount / 20) * 100);
+    const aiEstText = projectForecast[viewOnlyProject.id];
+
+    return (
+      <div style={{ display: 'flex', flex: 1, alignItems: 'flex-start', justifyContent: 'center', padding: '16px', minHeight: '100vh', background: '#020617' }}>
+        <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '480px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+          
+          <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+            <div style={{ width: '56px', height: '56px', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6, 182, 212, 0.1)', borderRadius: '50%', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
+              <Activity style={{ color: '#06b6d4' }} size={28} />
+            </div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0 0 4px', color: '#fff' }}>{viewOnlyProject.name}</h2>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>
+              Relatório Restrito de Progresso
+            </p>
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.2)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center', display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: '2.5rem', fontWeight: 800, color: '#06b6d4', margin: '0 0 4px' }}>{progressPercent}%</h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Avanço Total</p>
+            </div>
+            <div style={{ width: '1px', height: '50px', background: 'rgba(255,255,255,0.1)' }}></div>
+            <div>
+              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/20</span></h3>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Fases Concluídas</p>
+            </div>
+          </div>
+
+          <div style={{ height: '220px', width: '100%', marginTop: '10px' }}>
+            {renderSCurveSVG()}
+          </div>
+
+          {aiEstText && (
+            <div style={{ background: 'rgba(6,182,212,0.05)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(6,182,212,0.1)' }}>
+              <strong style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: '#06b6d4', marginBottom: '8px' }}>
+                <Brain size={16} /> Análise da IA
+              </strong>
+              <div style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: 1.6, maxHeight: '300px', overflowY: 'auto' }}>
+                {renderMarkdown(aiEstText)}
+              </div>
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+            <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+              <Lock size={12} /> Acesso Somente Leitura • ElevateSync
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!session) {
     return (
       <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
