@@ -26,6 +26,7 @@ export default function App() {
   const [viewOnlyProject, setViewOnlyProject] = useState(null);
   const [viewOnlyPhases, setViewOnlyPhases] = useState([]);
   const [viewOnlyLoading, setViewOnlyLoading] = useState(false);
+  const [showMobileSchedule, setShowMobileSchedule] = useState(false);
 
   useEffect(() => {
     if (viewOnlyProjectId) {
@@ -2875,6 +2876,74 @@ Assistente IA:`;
               </div>
             </div>
           )}
+
+          <div style={{ marginTop: '16px' }}>
+            <button
+              onClick={() => setShowMobileSchedule(!showMobileSchedule)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              <Calendar size={18} />
+              {showMobileSchedule ? 'Ocultar Cronograma' : 'Gerar Cronograma Inteligente'}
+            </button>
+
+            {showMobileSchedule && (
+              <div style={{ marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '16px' }}>
+                  Cronograma calculado com base no prazo final ({deadlineDateObj.toLocaleDateString('pt-BR')}).
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {viewOnlyPhases.map((phase, index) => {
+                    const phaseDate = new Date(startDateObj);
+                    const totalDays = Math.max(1, (deadlineDateObj - startDateObj) / (1000 * 60 * 60 * 24));
+                    const phaseCount = viewOnlyPhases.length || 20;
+                    const daysPerPhase = totalDays / phaseCount;
+                    
+                    phaseDate.setDate(phaseDate.getDate() + Math.round(daysPerPhase * (index + 1)));
+                    
+                    const isLate = new Date() > phaseDate && phase.progress_percent < 100;
+                    const isCompleted = phase.progress_percent === 100;
+                    
+                    let statusColor = '#94a3b8';
+                    if (isCompleted) statusColor = '#10b981';
+                    else if (isLate) statusColor = '#ef4444';
+                    else if (phase.started) statusColor = '#3b82f6';
+                    
+                    return (
+                      <div key={phase.id} style={{ 
+                        padding: '10px', background: 'rgba(0,0,0,0.3)', borderRadius: '6px',
+                        borderLeft: `3px solid ${statusColor}`
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
+                            {phase.phases.phase_number}. {phase.phases.name}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.75rem' }}>
+                          <span style={{ color: statusColor }}>Até: {phaseDate.toLocaleDateString('pt-BR')}</span>
+                          <span style={{ color: '#94a3b8' }}>
+                            {isCompleted ? '100%' : (phase.started ? `${phase.progress_percent}%` : 'Não Iniciado')}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
             <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
