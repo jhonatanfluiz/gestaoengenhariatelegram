@@ -3666,31 +3666,32 @@ Assistente IA:`;
 
           {/* S-Curve & weekly progress chart tab */}
           {activeTab === 's-curve' && (
-            <div style={{ width: '100%', maxWidth: '860px' }}>
-            <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
-                <div>
-                  <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <BarChart2 size={20} style={{ color: '#06b6d4' }} />
-                    Curvas de Evolução (Medição Semanal)
-                  </h3>
-                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px' }}>
-                    Histórico consolidado do avanço percentual das obras ao longo das semanas de trabalho.
-                  </p>
+            <div style={{ width: '100%', maxWidth: '740px' }}>
+              <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '16px', marginBottom: '24px' }}>
+                  <div>
+                    <h3 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <BarChart2 size={20} style={{ color: '#06b6d4' }} />
+                      Curvas de Evolução (Medição Semanal)
+                    </h3>
+                    <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px' }}>
+                      Histórico consolidado do avanço percentual das obras ao longo das semanas de trabalho.
+                    </p>
+                  </div>
+                  
+                  {/* Project selector */}
+                  <div>
+                    <select value={sCurveProjId} onChange={e => setSCurveProjId(e.target.value)} style={{ width: '260px' }}>
+                      <option value="">-- Selecione uma Obra --</option>
+                      {projects.map(p => (
+                        <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                
-                {/* Project selector */}
-                <div>
-                  <select value={sCurveProjId} onChange={e => setSCurveProjId(e.target.value)} style={{ width: '260px' }}>
-                    <option value="">-- Selecione uma Obra --</option>
-                    {projects.map(p => (
-                      <option key={p.project_id} value={p.project_id}>{p.project_name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
-              {sCurveProjId && renderSCurveSVG()}
+                {sCurveProjId && renderSCurveSVG()}
+              </div>
             </div>
           )}
 
