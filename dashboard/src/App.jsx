@@ -4885,6 +4885,7 @@ Assistente IA:`;
 
       {/* Floating Action Button (FAB) for Novos Cadastros */}
       <button
+        id="fab-plus"
         onClick={() => {
           setActiveTab('new-registry');
           setActiveProject(null); // Volta para a tela principal de cadastros se estivesse em uma obra detalhada
@@ -4933,8 +4934,9 @@ Assistente IA:`;
 
       {/* ===== EXPORT PDF BUTTON ===== */}
       <button
+        id="fab-export"
         onClick={() => window.print()}
-        className="no-print"
+        className={`no-print ${(!activeProject || projectSubTab !== 'phases' || !showMobileSchedule) ? 'mobile-hidden' : ''}`}
         onMouseEnter={() => setIsExportHovered(true)}
         onMouseLeave={() => setIsExportHovered(false)}
         style={{

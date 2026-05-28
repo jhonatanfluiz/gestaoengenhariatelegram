@@ -412,3 +412,49 @@ label {
   box-shadow: 0 18px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.15) !important;
 }
 
+@media (max-width: 768px) {
+  body, html {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  #root {
+    padding-bottom: 90px;
+  }
+
+  .mobile-hidden {
+    display: none !important;
+  }
+
+  /* Market best practices: Mobile floating dock arrangement */
+  #fab-plus, #fab-export, #ai-float-btn {
+    bottom: 24px !important;
+    position: fixed !important;
+    transform: none !important;
+    margin: 0 !important;
+    z-index: 100 !important;
+  }
+  
+  #ai-float-btn {
+    left: calc(50% - 90px) !important;
+  }
+  
+  #fab-export {
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+  
+  #fab-plus {
+    right: auto !important;
+    left: calc(50% + 90px - 56px) !important; 
+  }
+
+  /* Prevent expanding on tap/hover which causes horizontal shift */
+  #fab-plus, #fab-export {
+    width: 56px !important;
+  }
+  
+  #fab-plus span, #fab-export span {
+    display: none !important;
+  }
+}
