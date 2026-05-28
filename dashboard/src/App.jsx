@@ -2939,8 +2939,6 @@ Assistente IA:`;
             {[
               { id: 'projects', label: 'Obras Comerciais' },
               { id: 's-curve', label: 'Curva S & Avanço' },
-              { id: 'ai-chat', label: '🤖 Assistente IA' },
-              { id: 'new-registry', label: '📝 Cadastros (+)' }
             ].map(tab => (
               <button 
                 key={tab.id}
@@ -3069,16 +3067,25 @@ Assistente IA:`;
 
           {/* Projects view */}
           {activeTab === 'projects' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }} className="animate-fade-in">
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '16px',
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+              }}
+              className="animate-fade-in"
+            >
               {projects.length === 0 ? (
-                <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', gridColumn: '1 / -1' }}>
+                <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', width: '100%', maxWidth: '520px' }}>
                   <AlertTriangle style={{ color: '#f59e0b', marginBottom: '12px' }} size={32} />
                   <h4 style={{ color: '#ffffff' }}>Nenhuma obra comercial cadastrada</h4>
-                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '8px' }}>Selecione a aba "📝 Cadastros (+)" acima para inicializar a instalação de um elevador.</p>
+                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '8px' }}>Use o botão <strong style={{ color: '#06b6d4' }}>🛗 Assistente IA</strong> ou o botão <strong style={{ color: '#06b6d4' }}>+ Novo Cadastro</strong> nos cantos inferiores para começar.</p>
                 </div>
               ) : (
                 projects.map((proj) => (
-                  <div key={proj.project_id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px', border: proj.is_delayed ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)' }}>
+                  <div key={proj.project_id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px', border: proj.is_delayed ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)', width: '340px', flexShrink: 0, flexGrow: 0 }}>
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                         <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>{proj.project_name}</h3>
