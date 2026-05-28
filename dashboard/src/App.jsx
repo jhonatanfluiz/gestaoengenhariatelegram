@@ -2937,9 +2937,9 @@ Assistente IA:`;
           {/* Main Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '4px', overflow: 'visible', position: 'relative', justifyContent: 'center' }} className="no-print">
             {[
-              { id: 'projects', label: 'Obras Comerciais' },
-              { id: 's-curve', label: 'Curva S & Avanço' },
-              { id: 'ranking', label: '🏆 Ranking de Pendências' },
+              { id: 'projects', label: '🏗️ Elevadores em Montagem' },
+              { id: 's-curve', label: '📈 Curvas de Evolução' },
+              { id: 'ranking', label: '🎯 Previsões de Entrega' },
             ].map(tab => (
               <button 
                 key={tab.id}
@@ -3670,7 +3670,7 @@ Assistente IA:`;
                 <div>
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <BarChart2 size={20} style={{ color: '#06b6d4' }} />
-                    Curva de Avanço (Curva S - Medição Semanal)
+                    Curvas de Evolução (Medição Semanal)
                   </h3>
                   <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px' }}>
                     Histórico consolidado do avanço percentual das obras ao longo das semanas de trabalho.
@@ -3746,12 +3746,12 @@ Assistente IA:`;
               <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
                 <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AlertTriangle size={20} style={{ color: '#f59e0b' }} />
-                  Ranking de Pendências (Fases Incompletas)
+                  🎯 Previsões de Entrega
                 </h3>
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }} className="no-print">
                   <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
-                    Obras ordenadas pelo volume de pendências e fases não iniciadas.
+                    Elevadores ordenados por volume de pendências, fases incompletas e previsão de conclusão.
                   </p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Filtrar Conclusão por Mês:</span>
