@@ -192,6 +192,22 @@ label {
   to { transform: rotate(360deg); }
 }
 
+@keyframes aiFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes aiRing {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.18); opacity: 0; }
+}
+
+@keyframes aiPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(16,185,129,0.5); opacity: 1; }
+  50% { box-shadow: 0 0 10px rgba(16,185,129,0.9); opacity: 0.8; }
+}
+
+
 @keyframes pulseGlow {
   0% { box-shadow: 0 0 5px rgba(6, 182, 212, 0.2); }
   50% { box-shadow: 0 0 15px rgba(6, 182, 212, 0.5); }

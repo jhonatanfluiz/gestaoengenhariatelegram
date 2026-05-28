@@ -271,6 +271,7 @@ export default function App() {
   const [newManagerAccessLevel, setNewManagerAccessLevel] = useState('restricted');
 
   const [msgNotification, setMsgNotification] = useState(null);
+  const [aiFloatHover, setAiFloatHover] = useState(false);
 
   // Auto-calculate deadline to start_date + 60 days on change
   useEffect(() => {
@@ -4568,6 +4569,174 @@ Assistente IA:`;
           </span>
         )}
       </button>
+
+      {/* ===== AI FLOATING ASSISTANT BUTTON ===== */}
+      {session && (
+        <div
+          id="ai-float-btn"
+          onMouseEnter={() => setAiFloatHover(true)}
+          onMouseLeave={() => setAiFloatHover(false)}
+          onClick={() => {
+            setActiveProject(null);
+            setActiveTab('ai-chat');
+          }}
+          className="no-print"
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '24px',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0px',
+            cursor: 'pointer',
+          }}
+        >
+          {/* Tooltip de apresentação (hover) */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 'calc(100% + 14px)',
+              left: '0',
+              width: '260px',
+              background: 'linear-gradient(135deg, rgba(6,182,212,0.12) 0%, rgba(15,23,42,0.97) 100%)',
+              border: '1px solid rgba(6,182,212,0.35)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderRadius: '14px',
+              padding: '14px 16px',
+              boxShadow: '0 20px 40px -10px rgba(0,0,0,0.6), 0 0 20px rgba(6,182,212,0.15)',
+              opacity: aiFloatHover ? 1 : 0,
+              transform: aiFloatHover ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.96)',
+              transition: 'opacity 0.3s cubic-bezier(0.34,1.56,0.64,1), transform 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+              pointerEvents: 'none',
+            }}
+          >
+            {/* Seta do tooltip */}
+            <div style={{
+              position: 'absolute',
+              bottom: '-7px',
+              left: '28px',
+              width: '14px',
+              height: '14px',
+              background: 'rgba(15,23,42,0.97)',
+              border: '1px solid rgba(6,182,212,0.35)',
+              borderTop: 'none',
+              borderLeft: 'none',
+              transform: 'rotate(45deg)',
+              borderRadius: '0 0 3px 0',
+            }} />
+            
+            {/* Badge IA */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              background: 'rgba(6,182,212,0.15)',
+              border: '1px solid rgba(6,182,212,0.3)',
+              borderRadius: '20px',
+              padding: '2px 8px',
+              marginBottom: '8px',
+            }}>
+              <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#06b6d4', letterSpacing: '0.08em', textTransform: 'uppercase' }}>IA Online</span>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', boxShadow: '0 0 6px #10b981', animation: 'aiPulse 2s ease-in-out infinite', display: 'inline-block' }} />
+            </div>
+
+            <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#ffffff', margin: '0 0 6px', lineHeight: 1.4 }}>
+              Sou seu Assistente Inteligente! 🛗
+            </p>
+            <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0, lineHeight: 1.6 }}>
+              Posso ajudar com <strong style={{ color: '#22d3ee' }}>relatório técnico</strong>, <strong style={{ color: '#22d3ee' }}>status de obra</strong> ou qualquer dúvida — é só digitar!
+            </p>
+          </div>
+
+          {/* Botão principal */}
+          <div
+            style={{
+              width: '58px',
+              height: '58px',
+              borderRadius: '50%',
+              background: aiFloatHover
+                ? 'linear-gradient(135deg, #0e7490 0%, #06b6d4 60%, #22d3ee 100%)'
+                : 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 40%, #06b6d4 100%)',
+              border: aiFloatHover ? '2px solid rgba(6,182,212,0.9)' : '2px solid rgba(6,182,212,0.4)',
+              boxShadow: aiFloatHover
+                ? '0 0 0 6px rgba(6,182,212,0.15), 0 0 30px rgba(6,182,212,0.5), 0 8px 24px rgba(0,0,0,0.5)'
+                : '0 0 0 4px rgba(6,182,212,0.08), 0 0 16px rgba(6,182,212,0.25), 0 6px 18px rgba(0,0,0,0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              transform: aiFloatHover ? 'scale(1.12) translateY(-3px)' : 'scale(1) translateY(0)',
+              transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+              position: 'relative',
+              overflow: 'visible',
+              animation: aiFloatHover ? 'none' : 'aiFloat 3s ease-in-out infinite',
+            }}
+          >
+            {/* Glow ring animado */}
+            <div style={{
+              position: 'absolute',
+              inset: '-6px',
+              borderRadius: '50%',
+              border: '1.5px solid rgba(6,182,212,0.3)',
+              animation: 'aiRing 2.5s ease-in-out infinite',
+              opacity: aiFloatHover ? 0 : 1,
+              transition: 'opacity 0.3s',
+            }} />
+
+            {/* Emoji elevador */}
+            <span style={{
+              fontSize: aiFloatHover ? '1.7rem' : '1.5rem',
+              transition: 'all 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+              lineHeight: 1,
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))',
+              transform: aiFloatHover ? 'rotate(-5deg)' : 'rotate(0deg)',
+            }}>🛗</span>
+
+            {/* Indicador AI */}
+            <div style={{
+              position: 'absolute',
+              top: '-2px',
+              right: '-2px',
+              width: '18px',
+              height: '18px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #10b981, #059669)',
+              border: '2px solid #090d16',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.55rem',
+              fontWeight: 700,
+              color: '#fff',
+              boxShadow: '0 0 8px rgba(16,185,129,0.6)',
+              animation: 'aiPulse 2s ease-in-out infinite',
+            }}>IA</div>
+          </div>
+
+          {/* Label lateral */}
+          <div style={{
+            marginLeft: aiFloatHover ? '10px' : '0px',
+            maxWidth: aiFloatHover ? '140px' : '0px',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            opacity: aiFloatHover ? 1 : 0,
+            transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
+          }}>
+            <div style={{
+              background: 'rgba(6,182,212,0.1)',
+              border: '1px solid rgba(6,182,212,0.25)',
+              backdropFilter: 'blur(12px)',
+              borderRadius: '8px',
+              padding: '6px 12px',
+            }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#06b6d4', display: 'block' }}>Assistente IA</span>
+              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Clique para abrir</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
