@@ -42,7 +42,8 @@ CREATE TABLE public.profiles (
     full_name TEXT NOT NULL,
     telegram_chat_id TEXT UNIQUE,
     whatsapp_number TEXT UNIQUE,
-    role TEXT NOT NULL CHECK (role IN ('manager', 'technician')),
+    role TEXT NOT NULL CHECK (role IN ('master', 'manager', 'technician')),
+    access_level TEXT CHECK (access_level IN ('restricted', 'unrestricted')) DEFAULT 'restricted',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -337,6 +338,24 @@ CREATE TRIGGER tr_audit_progress
 AFTER INSERT OR UPDATE OR DELETE ON public.project_phases_progress
 FOR EACH ROW EXECUTE FUNCTION public.fn_audit_log_changes();
 
+-- Restrição: no máximo 2 cadastros Master
+CREATE OR REPLACE FUNCTION public.check_max_masters()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.role = 'master' THEN
+    IF (SELECT COUNT(*) FROM public.profiles WHERE role = 'master' AND id <> NEW.id) >= 2 THEN
+      RAISE EXCEPTION 'O limite máximo de 2 cadastros Master já foi atingido.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_check_max_masters
+BEFORE INSERT OR UPDATE OF role ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION public.check_max_masters();
+
 -- =====================================================================
 -- 6. POLÍCIES DE SEGURANÇA RLS (ROW LEVEL SECURITY)
 -- =====================================================================
@@ -465,3 +484,41 @@ BEGIN
     RETURN payload;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 8. CONFIGURAÇÃO DE LEMBRETES AGENDADOS (pg_cron + pg_net)
+-- Habilita as extensões necessárias para agendamento assíncrono de chamadas HTTP
+CREATE EXTENSION IF NOT EXISTS pg_net;
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+-- Agendamento de Lembretes Diários (Todos os dias às 10:00 UTC / 07:00 Horário de Brasília)
+SELECT cron.schedule(
+  'daily-telegram-reminders',
+  '0 10 * * *',
+  $$ SELECT net.http_post(
+       url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
+       body := '{"action": "trigger_reminders", "frequency": "daily"}'::jsonb
+     );
+  $$
+);
+
+-- Agendamento de Lembretes Semanais (Toda segunda-feira às 10:00 UTC / 07:00 Horário de Brasília)
+SELECT cron.schedule(
+  'weekly-telegram-reminders',
+  '0 10 * * 1',
+  $$ SELECT net.http_post(
+       url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
+       body := '{"action": "trigger_reminders", "frequency": "weekly"}'::jsonb
+     );
+  $$
+);
+
+-- Agendamento de Lembretes Mensais (Todo dia 1º de cada mês às 10:00 UTC / 07:00 Horário de Brasília)
+SELECT cron.schedule(
+  'monthly-telegram-reminders',
+  '0 10 1 * *',
+  $$ SELECT net.http_post(
+       url := 'https://ovprluqhqhlolijrmkjl.supabase.co/functions/v1/telegram-bot',
+       body := '{"action": "trigger_reminders", "frequency": "monthly"}'::jsonb
+     );
+  $$
+);
