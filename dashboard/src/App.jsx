@@ -3783,7 +3783,20 @@ Assistente IA:`;
                       const aiEst = projectForecast[rank.project_id];
 
                       return (
-                        <div key={rank.project_id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px', width: '340px', flexShrink: 0, flexGrow: 0 }}>
+                        <div 
+                          key={rank.project_id} 
+                          className="glass-panel"
+                          style={{ 
+                            padding: '20px', 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '16px', 
+                            border: (linearEst && linearEst.isDelayed) ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)',
+                            width: '340px', 
+                            flexShrink: 0, 
+                            flexGrow: 0 
+                          }}
+                        >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
                             <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                               <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}>{idx + 1}</span>
