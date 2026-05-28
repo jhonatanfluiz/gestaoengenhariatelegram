@@ -2935,7 +2935,7 @@ Assistente IA:`;
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Main Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '4px', overflow: 'visible', position: 'relative', justifyContent: 'center' }} className="no-print">
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '4px', overflow: 'visible', position: 'relative', justifyContent: 'center', width: '100%' }} className="no-print">
             {[
               { id: 'projects', label: '🏗️ Elevadores em Montagem' },
               { id: 's-curve', label: '📈 Curvas de Evolução' },
@@ -3074,6 +3074,7 @@ Assistente IA:`;
                 gap: '16px',
                 justifyContent: 'center',
                 alignItems: 'flex-start',
+                width: '100%',
               }}
               className="animate-fade-in"
             >
@@ -3665,6 +3666,7 @@ Assistente IA:`;
 
           {/* S-Curve & weekly progress chart tab */}
           {activeTab === 's-curve' && (
+            <div style={{ width: '100%', maxWidth: '860px' }}>
             <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
                 <div>
@@ -3743,6 +3745,7 @@ Assistente IA:`;
             });
 
             return (
+              <div style={{ width: '100%', maxWidth: '860px' }}>
               <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
                 <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AlertTriangle size={20} style={{ color: '#f59e0b' }} />
@@ -3769,7 +3772,7 @@ Assistente IA:`;
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
                   {sortedRankings.length === 0 ? (
                     <p style={{ color: '#94a3b8' }}>Nenhuma pendência encontrada para o filtro selecionado!</p>
                   ) : (
@@ -3779,32 +3782,41 @@ Assistente IA:`;
                       const aiEst = projectForecast[rank.project_id];
 
                       return (
-                        <div key={rank.project_id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' }}>{idx + 1}</span>
-                              {rank.project_name}
+                        <div key={rank.project_id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '16px', background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.04)', borderRadius: '12px', width: '340px', flexShrink: 0, flexGrow: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                            <h4 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                              <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(245,158,11,0.1)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}>{idx + 1}</span>
+                              <span style={{ wordBreak: 'break-word' }}>{rank.project_name}</span>
                             </h4>
-                            <div style={{ display: 'flex', gap: '12px', fontSize: '0.8rem' }}>
-                              <span style={{ color: '#ef4444' }}>{rank.not_started_phases_count} Não Iniciadas</span>
-                              <span style={{ color: '#f59e0b' }}>{rank.in_progress_phases_count} Em Progresso</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.75rem', textAlign: 'right' }}>
+                              <span style={{ color: '#ef4444', fontWeight: 600 }}>{rank.not_started_phases_count} Não Iniciadas</span>
+                              <span style={{ color: '#f59e0b', fontWeight: 600 }}>{rank.in_progress_phases_count} Em Progresso</span>
                             </div>
                           </div>
                           
-                          <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8' }}>
-                            <strong>Fases Pendentes:</strong> {rank.pending_phases_list || 'Nenhuma'}
+                          <div style={{ fontSize: '0.8rem', background: '#020617', padding: '12px', borderRadius: '8px', color: '#94a3b8', flex: 1, overflowY: 'auto', maxHeight: '150px' }}>
+                            <strong style={{ display: 'block', marginBottom: '8px', color: '#e2e8f0' }}>Fases Pendentes:</strong>
+                            {rank.pending_phases_list ? (
+                              <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                {rank.pending_phases_list.split(', ').map((phase, i) => (
+                                  <li key={i}>{phase}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span>Nenhuma</span>
+                            )}
                           </div>
 
                           {/* Completion Estimates Panel inside the ranking card */}
                           {proj && (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginTop: '4px', background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px', background: 'rgba(255,255,255,0.01)', border: '1px dashed rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
                               <div>
                                 <span style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>Previsão Linear (Automática)</span>
                                 <strong style={{ fontSize: '0.8rem', color: linearEst.isDelayed ? '#ef4444' : '#10b981' }}>
                                   {linearEst.text}
                                 </strong>
                               </div>
-                              <div>
+                              <div style={{ borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '12px' }}>
                                 <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <Brain size={12} style={{ color: '#06b6d4' }} />
                                   Previsão Refinada (IA Gemini)
