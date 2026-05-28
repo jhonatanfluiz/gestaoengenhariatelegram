@@ -323,6 +323,10 @@ export default function App() {
   const [msgNotification, setMsgNotification] = useState(null);
   const [aiFloatHover, setAiFloatHover] = useState(false);
 
+  // Touch swipe handling for mobile
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchEndX, setTouchEndX] = useState(null);
+
   // Auto-calculate deadline to start_date + 60 days on change
   useEffect(() => {
     if (newProjStartDate) {
@@ -3001,8 +3005,6 @@ Assistente IA:`;
   }
 
   // Touch swipe handling for mobile
-  const [touchStartX, setTouchStartX] = useState(null);
-  const [touchEndX, setTouchEndX] = useState(null);
   const minSwipeDistance = 50;
 
   const onTouchStart = (e) => {
