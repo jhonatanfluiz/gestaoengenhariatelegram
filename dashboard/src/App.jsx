@@ -3000,8 +3000,58 @@ Assistente IA:`;
     );
   }
 
+  // Touch swipe handling for mobile
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchEndX, setTouchEndX] = useState(null);
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e) => {
+    setTouchEndX(null); // Reset
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStartX || !touchEndX) return;
+    const distance = touchStartX - touchEndX;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe || isRightSwipe) {
+      if (activeProject) {
+        // Obra aberta
+        const subTabs = ['phases', 'report', 'schedule', 'history'];
+        const currentIndex = subTabs.indexOf(projectSubTab);
+        if (isLeftSwipe && currentIndex < subTabs.length - 1) {
+          setProjectSubTab(subTabs[currentIndex + 1]);
+        } else if (isRightSwipe && currentIndex > 0) {
+          setProjectSubTab(subTabs[currentIndex - 1]);
+        }
+      } else {
+        // Main tabs
+        const mainTabs = ['projects', 's-curve', 'ranking'];
+        const currentIndex = mainTabs.indexOf(activeTab);
+        if (currentIndex !== -1) {
+          if (isLeftSwipe && currentIndex < mainTabs.length - 1) {
+            setActiveTab(mainTabs[currentIndex + 1]);
+          } else if (isRightSwipe && currentIndex > 0) {
+            setActiveTab(mainTabs[currentIndex - 1]);
+          }
+        }
+      }
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div 
+      style={{ display: 'flex', flexDirection: 'column', flex: 1 }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       {/* Toast */}
       {msgNotification && (
         <div style={{
