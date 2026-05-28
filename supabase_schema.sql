@@ -146,7 +146,7 @@ INSERT INTO public.phases (phase_number, name, description, weight) VALUES
 (6, 'Instalação das guias do contrapeso', 'Montagem e fixação dos trilhos que guiarão o contrapeso.', 6),
 (7, 'Montagem da máquina de tração', 'Fixação do motor de tração no topo do poço ou casa de máquinas.', 10),
 (8, 'Instalação da base da máquina', 'Montagem da base metálica/apoios que sustentam a máquina.', 5),
-(9, 'Instalação do limitador de velocidade', 'Fixação do sistema mecânico de segurança contra queda livre.', 4),
+(9, 'Instalação do limitador de velocidade e sistema de tração', 'Fixação do sistema mecânico de segurança contra queda livre, instalação dos cabos de aços e tirantes cabine/contrapeso.', 4),
 (10, 'Instalação do quadro de comando', 'Fixação física do painel elétrico principal de controle.', 6),
 (11, 'Passagem de chicotes e cabeamentos', 'Instalação da fiação do poço, botoeiras e sensores.', 8),
 (12, 'Montagem da cabine', 'Montagem do piso, teto, e painéis de parede da cabine do elevador.', 10),
