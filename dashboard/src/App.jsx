@@ -644,6 +644,12 @@ export default function App() {
   const handleAuth = async (e) => {
     e.preventDefault();
     setAuthError(null);
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError('Por favor, insira um e-mail válido (ex: gestor@empresa.com).');
+      return;
+    }
+
     setLoading(true);
 
     if (isSignUp) {
@@ -657,7 +663,7 @@ export default function App() {
         if (countErr) throw countErr;
 
         if (count !== null && count >= 2) {
-          setAuthError('O limite de 2 contas Master já foi atingido. Não é possível criar novos cadastros Master.');
+          setAuthError('O limite de 2 administradores Master já foi atingido. Para cadastrar um novo administrador, peça para um Master atual excluir uma conta existente na aba "Equipes & Técnicos".');
           setLoading(false);
           return;
         }
@@ -688,6 +694,24 @@ export default function App() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setAuthError(error.message);
       else showToast('Login efetuado com sucesso!');
+    }
+    setLoading(false);
+  };
+
+  const handlePasswordReset = async () => {
+    setAuthError(null);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setAuthError('Por favor, insira seu e-mail acima para recuperar a senha.');
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) {
+      setAuthError('Erro ao solicitar recuperação: ' + error.message);
+    } else {
+      showToast('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
     }
     setLoading(false);
   };
@@ -2978,7 +3002,14 @@ Assistente IA:`;
             </div>
 
             <div>
-              <label>Senha</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ margin: 0 }}>Senha</label>
+                {!isSignUp && (
+                  <button type="button" onClick={handlePasswordReset} style={{ background: 'none', border: 'none', color: '#06b6d4', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
+                    Esqueceu a senha?
+                  </button>
+                )}
+              </div>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
             </div>
 
