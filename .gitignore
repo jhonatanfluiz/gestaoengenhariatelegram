@@ -1,0 +1,28 @@
+# Dependency directories
+node_modules/
+dashboard/node_modules/
+
+# Production build outputs
+dist/
+dashboard/dist/
+
+# Environment variables (sensitive data)
+.env
+dashboard/.env
+.env.local
+.env.*.local
+
+# System/IDE logs and cache
+*.log
+npm-debug.log*
+.yarn/
+.pnpm-store/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Supabase local files
+supabase/.temp/
+supabase/.branches/
+.supabase/
