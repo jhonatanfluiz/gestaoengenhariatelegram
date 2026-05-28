@@ -19,6 +19,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [authError, setAuthError] = useState(null);
 
   // View Only state
@@ -711,6 +712,7 @@ export default function App() {
       setAuthError('Erro ao solicitar recuperação: ' + error.message);
     } else {
       showToast('E-mail de recuperação enviado! Verifique sua caixa de entrada.');
+      setIsForgotPassword(false);
     }
     setLoading(false);
   };
@@ -3017,41 +3019,71 @@ Assistente IA:`;
             <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Acompanhamento de Obras de Elevadores</p>
           </div>
 
-          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <label>E-mail do Gestor</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="gestor@empresa.com" />
-            </div>
+          {isForgotPassword ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px', textAlign: 'center' }}>
+                Digite o e-mail cadastrado e clique em enviar para receber as instruções de recuperação de senha.
+              </p>
+              <div>
+                <label>E-mail do Gestor</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="gestor@empresa.com" />
+              </div>
 
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ margin: 0 }}>Senha</label>
-                {!isSignUp && (
-                  <button type="button" onClick={handlePasswordReset} style={{ background: 'none', border: 'none', color: '#06b6d4', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
-                    Esqueceu a senha?
-                  </button>
+              {authError && (
+                <div style={{ display: 'flex', gap: '8px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', color: '#f87171', fontSize: '0.85rem' }}>
+                  <ShieldAlert size={20} />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                <button type="button" onClick={handlePasswordReset} disabled={loading} className="btn btn-primary" style={{ width: '100%' }}>
+                  {loading ? 'Enviando...' : 'Enviar'}
+                </button>
+                <button type="button" onClick={() => { setIsForgotPassword(false); setAuthError(null); }} className="btn btn-secondary" style={{ width: '100%' }}>
+                  Voltar para o Login
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label>E-mail do Gestor</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="gestor@empresa.com" />
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Senha</label>
+                    {!isSignUp && (
+                      <button type="button" onClick={() => setIsForgotPassword(true)} style={{ background: 'none', border: 'none', color: '#06b6d4', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
+                        Esqueceu a senha?
+                      </button>
+                    )}
+                  </div>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
+                </div>
+
+                {authError && (
+                  <div style={{ display: 'flex', gap: '8px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', color: '#f87171', fontSize: '0.85rem' }}>
+                    <ShieldAlert size={20} />
+                    <span>{authError}</span>
+                  </div>
                 )}
+
+                <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: '100%', marginTop: '8px' }}>
+                  {loading ? 'Carregando...' : (isSignUp ? 'Criar Conta Master' : 'Entrar no Sistema')}
+                </button>
+              </form>
+
+              <div style={{ textAlign: 'center', marginTop: '24px' }}>
+                <button type="button" onClick={() => setIsSignUp(!isSignUp)} style={{ background: 'none', border: 'none', color: '#06b6d4', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}>
+                  {isSignUp ? 'Já possui conta? Fazer Login' : 'Criar nova conta Master'}
+                </button>
               </div>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" />
-            </div>
-
-            {authError && (
-              <div style={{ display: 'flex', gap: '8px', padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', color: '#f87171', fontSize: '0.85rem' }}>
-                <ShieldAlert size={20} />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '8px' }}>
-              {isSignUp ? 'Criar Conta Master' : 'Entrar no Sistema'}
-            </button>
-          </form>
-
-          <div style={{ textAlign: 'center', marginTop: '24px' }}>
-            <button onClick={() => setIsSignUp(!isSignUp)} style={{ background: 'none', border: 'none', color: '#06b6d4', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}>
-              {isSignUp ? 'Já possui conta? Fazer Login' : 'Criar nova conta Master'}
-            </button>
-          </div>
+            </>
+          )}
         </div>
       </div>
     );
