@@ -73,7 +73,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('projects');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isFabHovered, setIsFabHovered] = useState(false);
-  const [isExportHovered, setIsExportHovered] = useState(false);
   
   // Registration sub-tab: 'project' | 'team' | 'tech' | 'company'
   const [regSubTab, setRegSubTab] = useState('project');
@@ -2907,6 +2906,29 @@ Assistente IA:`;
                     );
                   })}
                 </div>
+                
+
+                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'center' }} className="no-print">
+                  <button
+                    onClick={() => window.print()}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '12px 24px',
+                      borderRadius: '8px',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      color: '#ffffff',
+                      border: 'none',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                    }}
+                  >
+                    <Printer size={20} />
+                    Exportar / Imprimir Cronograma
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -5011,53 +5033,6 @@ Assistente IA:`;
             }}
           >
             Novo Cadastro
-          </span>
-        )}
-      </button>
-
-      {/* ===== EXPORT PDF BUTTON ===== */}
-      <button
-        id="fab-export"
-        onClick={() => window.print()}
-        className={`no-print ${(!activeProject || projectSubTab !== 'phases' || !showMobileSchedule) ? 'mobile-hidden' : ''}`}
-        onMouseEnter={() => setIsExportHovered(true)}
-        onMouseLeave={() => setIsExportHovered(false)}
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 99,
-          height: '56px',
-          width: isExportHovered ? '180px' : '56px',
-          borderRadius: '28px',
-          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-          color: '#ffffff',
-          border: 'none',
-          boxShadow: '0 0 20px 0 rgba(16, 185, 129, 0.4), 0 4px 12px rgba(0,0,0,0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          overflow: 'hidden',
-          padding: '0 16px',
-          gap: '8px',
-        }}
-        title="Exportar PDF"
-      >
-        <Printer size={24} style={{ flexShrink: 0 }} />
-        {isExportHovered && (
-          <span 
-            style={{ 
-              fontWeight: 700, 
-              fontSize: '0.9rem', 
-              whiteSpace: 'nowrap',
-              animation: 'fadeIn 0.2s ease-out forwards',
-              color: '#ffffff',
-            }}
-          >
-            Exportar PDF
           </span>
         )}
       </button>
