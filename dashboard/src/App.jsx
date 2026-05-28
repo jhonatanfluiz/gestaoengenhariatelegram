@@ -724,7 +724,12 @@ export default function App() {
           await supabase.auth.signOut();
           window.isChecking2FA = false;
           
-          const { error: otpErr } = await supabase.auth.signInWithOtp({ email });
+          const { error: otpErr } = await supabase.auth.signInWithOtp({ 
+            email,
+            options: {
+              emailRedirectTo: window.location.origin
+            }
+          });
           if (otpErr) {
             setAuthError('Erro ao enviar link de validação: ' + otpErr.message);
           } else {
