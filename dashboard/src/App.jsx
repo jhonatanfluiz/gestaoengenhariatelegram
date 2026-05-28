@@ -20,6 +20,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [emailErrorText, setEmailErrorText] = useState('');
 
@@ -359,8 +360,9 @@ export default function App() {
   // Auth and PWA initialization
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
       if (session) {
+        localStorage.setItem('device_verified_' + session.user.id, 'true');
+        setSession(session);
         fetchUserProfile(session.user.id);
       } else {
         setUserProfile(null);
@@ -369,10 +371,15 @@ export default function App() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
       if (session) {
+        if (!localStorage.getItem('device_verified_' + session.user.id)) {
+          if (window.isChecking2FA) return; // Prevent saving during password check
+          localStorage.setItem('device_verified_' + session.user.id, 'true');
+        }
+        setSession(session);
         fetchUserProfile(session.user.id);
       } else {
+        setSession(null);
         setUserProfile(null);
         setLoading(false);
       }
@@ -704,9 +711,32 @@ export default function App() {
         setAuthError('Erro ao verificar limite de administradores: ' + err.message);
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setAuthError(error.message);
-      else showToast('Login efetuado com sucesso!');
+      window.isChecking2FA = true;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        window.isChecking2FA = false;
+        setAuthError(error.message);
+      } else {
+        const isDeviceVerified = localStorage.getItem('device_verified_' + data.user.id);
+        
+        if (!isDeviceVerified) {
+          await supabase.auth.signOut();
+          window.isChecking2FA = false;
+          
+          const { error: otpErr } = await supabase.auth.signInWithOtp({ email });
+          if (otpErr) {
+            setAuthError('Erro ao enviar link de validação: ' + otpErr.message);
+          } else {
+            setIsVerificationSent(true);
+          }
+        } else {
+          window.isChecking2FA = false;
+          setSession(data.session);
+          fetchUserProfile(data.user.id);
+          showToast('Login efetuado com sucesso!');
+        }
+      }
     }
     setLoading(false);
   };
@@ -3032,7 +3062,26 @@ Assistente IA:`;
             <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Acompanhamento de Obras de Elevadores</p>
           </div>
 
-          {isForgotPassword ? (
+          {isVerificationSent ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center', textAlign: 'center' }}>
+              <div style={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '50%', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                <Shield style={{ color: '#10b981' }} size={32} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '8px', color: '#10b981' }}>Dispositivo Não Reconhecido</h2>
+                <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                  Para sua segurança, bloqueamos temporariamente o acesso.
+                  Enviamos um <strong>Link de Segurança</strong> para o e-mail: <strong style={{ color: '#e2e8f0' }}>{email}</strong>.
+                </p>
+                <p style={{ color: '#94a3b8', fontSize: '0.95rem', lineHeight: '1.5', marginTop: '12px' }}>
+                  Por favor, acesse seu e-mail e clique no link para validar e autorizar este dispositivo.
+                </p>
+              </div>
+              <button type="button" onClick={() => window.location.reload()} className="btn btn-secondary" style={{ width: '100%', marginTop: '8px' }}>
+                Voltar para o Início
+              </button>
+            </div>
+          ) : isForgotPassword ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px', textAlign: 'center' }}>
                 Digite o e-mail cadastrado e clique em enviar para receber as instruções de recuperação de senha.
