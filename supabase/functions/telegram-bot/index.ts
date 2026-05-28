@@ -363,9 +363,45 @@ async function askPhaseQuestion(
 
   if (phaseNum > 20) {
     log('All 20 phases processed. Ending checklist session.');
+
+    let aiMessage = '';
+    try {
+      const geminiKey = Deno.env.get('GEMINI_API_KEY');
+      if (geminiKey) {
+        log('Generating AI congratulatory/motivational message...');
+        // Fetch project details for context
+        const { data: projDetails } = await supabase
+          .from('projects')
+          .select('*')
+          .eq('id', projectId)
+          .single();
+          
+        const promptText = `O técnico finalizou o checklist da obra "${projDetails?.name || 'Projeto'}". Escreva uma mensagem muito curta e amigável (máximo 2 parágrafos pequenos) parabenizando a equipe pela conclusão do checklist e motivando-os para os próximos passos. Se a evolução do projeto não for tão positiva, seja encorajador e motivacional. Se estiver no prazo ou adiantado, parabenize com entusiasmo. Assine como "Seu Assistente IA".`;
+        
+        const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
+        });
+        
+        if (aiResp.ok) {
+          const aiData = await aiResp.json();
+          if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+            aiMessage = `\n\n🤖 **Mensagem da IA:**\n${aiData.candidates[0].content.parts[0].text.trim()}`;
+          }
+        } else {
+          log('Error calling Gemini API:', await aiResp.text());
+        }
+      }
+    } catch (e) {
+      log('Error generating AI message:', e);
+    }
+
+    const reportUrl = `${Deno.env.get('FRONTEND_URL') || 'https://seu-dominio.com'}/?view_report=${projectId}`;
+    
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: '🎉 **Checklist Concluído!** Você respondeu a todas as 20 fases da instalação. Obrigado por enviar as atualizações!',
+      text: `🎉 **Checklist Concluído!** Você respondeu a todas as 20 fases da instalação. Obrigado por enviar as atualizações!${aiMessage}\n\n📊 [Veja o seu relatório de progresso aqui](${reportUrl})`,
       parse_mode: 'Markdown',
     }, log);
     
@@ -781,54 +817,17 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
     log('Database progress update success.');
 
     if (progressPercent === 100) {
-      let nextMsg = '';
       if (phaseNum === 20) {
         log('Final phase completed. Completing project status.');
         await supabase
           .from('projects')
           .update({ status: 'completed' })
           .eq('id', projectId);
-
-        let aiMessage = '';
-        try {
-          const geminiKey = Deno.env.get('GEMINI_API_KEY');
-          if (geminiKey) {
-            log('Generating AI congratulatory/motivational message...');
-            // Fetch project details for context
-            const { data: projDetails } = await supabase
-              .from('projects')
-              .select('*')
-              .eq('id', projectId)
-              .single();
-              
-            const promptText = `O técnico finalizou o checklist da obra "${projDetails?.name || 'Projeto'}". Todas as 20 fases foram concluídas ou atualizadas hoje. Escreva uma mensagem muito curta e amigável (máximo 2 parágrafos pequenos) parabenizando a equipe pela conclusão do checklist e motivando-os para os próximos passos. Se o projeto estiver atrasado, seja encorajador. Se estiver no prazo, parabenize. Assine como "Seu Assistente IA".`;
-            
-            const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
-            });
-            
-            if (aiResp.ok) {
-              const aiData = await aiResp.json();
-              if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
-                aiMessage = `\n\n🤖 **Mensagem da IA:**\n${aiData.candidates[0].content.parts[0].text.trim()}`;
-              }
-            } else {
-              log('Error calling Gemini API:', await aiResp.text());
-            }
-          }
-        } catch (e) {
-          log('Error generating AI message:', e);
-        }
-
-        const reportUrl = `${Deno.env.get('FRONTEND_URL') || 'https://seu-dominio.com'}/?view_report=${projectId}`;
-        nextMsg = `\n\n🎉 **Checklist Concluído!** Todas as fases foram atualizadas.${aiMessage}\n\n📊 **Veja o seu relatório de progresso aqui:**\n${reportUrl}`;
       }
 
       await sendTelegram('sendMessage', {
         chat_id: chatId,
-        text: `✅ **Fase [${phaseNum}/20]: ${phaseName}** concluída com **100%** de progresso!${nextMsg}`,
+        text: `✅ **Fase [${phaseNum}/20]: ${phaseName}** concluída com **100%** de progresso!`,
         parse_mode: 'Markdown',
       }, log);
     } else {

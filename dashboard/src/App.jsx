@@ -5,7 +5,7 @@ import {
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronLeft, ChevronRight, ChevronDown, HardHat, Calendar,
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
-  Send, Trash2, Upload, FileSpreadsheet, Maximize2, Minimize2
+  Send, Trash2, Upload, FileSpreadsheet, Maximize2, Minimize2, Lock, Flag
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -27,6 +27,47 @@ export default function App() {
   const [viewOnlyPhases, setViewOnlyPhases] = useState([]);
   const [viewOnlyLoading, setViewOnlyLoading] = useState(false);
 
+  useEffect(() => {
+    if (viewOnlyProjectId) {
+      const fetchViewOnlyData = async () => {
+        setViewOnlyLoading(true);
+        try {
+          // Fetch project
+          const { data: projData, error: projErr } = await supabase
+            .from('projects')
+            .select('*')
+            .eq('id', viewOnlyProjectId)
+            .single();
+
+          if (projErr) throw projErr;
+          setViewOnlyProject(projData);
+
+          // Fetch phases progress
+          const { data: phasesData, error: phasesErr } = await supabase
+            .from('project_phases_progress')
+            .select(`
+              *,
+              phases:phase_id (
+                id,
+                phase_number,
+                name
+              )
+            `)
+            .eq('project_id', viewOnlyProjectId)
+            .order('phase_number', { referencedTable: 'phases', ascending: true });
+
+          if (!phasesErr && phasesData) {
+            setViewOnlyPhases(phasesData.sort((a, b) => a.phases.phase_number - b.phases.phase_number));
+          }
+        } catch (error) {
+          console.error("Error fetching view only data:", error);
+        } finally {
+          setViewOnlyLoading(false);
+        }
+      };
+      fetchViewOnlyData();
+    }
+  }, [viewOnlyProjectId]);
   // Active view states: 'projects' | 'teams' | 'companies' | 'phases' | 'history' | 's-curve' | 'ranking' | 'new-registry'
   const [activeTab, setActiveTab] = useState('projects');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -2672,6 +2713,19 @@ Assistente IA:`;
     const progressPercent = Math.round((completedCount / 20) * 100);
     const aiEstText = projectForecast[viewOnlyProject.id];
 
+    const startDateObj = new Date(viewOnlyProject.start_date);
+    const deadlineDateObj = new Date(viewOnlyProject.deadline_date);
+    const today = new Date();
+    
+    let computedElapsedDays = Math.floor((today - startDateObj) / (1000 * 60 * 60 * 24));
+    if (computedElapsedDays < 0) computedElapsedDays = 0;
+    if (progressPercent === 100 && viewOnlyProject.days_elapsed) {
+      computedElapsedDays = viewOnlyProject.days_elapsed;
+    }
+
+    const totalContractualDays = Math.max(1, Math.floor((deadlineDateObj - startDateObj) / (1000 * 60 * 60 * 24)));
+    const expectedProgress = Math.min(100, Math.round((computedElapsedDays / totalContractualDays) * 100));
+
     return (
       <div style={{ display: 'flex', flex: 1, alignItems: 'flex-start', justifyContent: 'center', padding: '16px', minHeight: '100vh', background: '#020617' }}>
         <div className="glass-panel animate-fade-in" style={{ width: '100%', maxWidth: '480px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
@@ -2695,6 +2749,41 @@ Assistente IA:`;
             <div>
               <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/20</span></h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Fases Concluídas</p>
+            </div>
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={14} /> Data de Início:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{startDateObj.toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Flag size={14} /> Prazo Contratual:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{deadlineDateObj.toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}><Clock size={14} /> Dias Corridos:</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{computedElapsedDays} dias</span>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.8rem' }}>
+                <span style={{ color: '#94a3b8' }}>Avanço Esperado: <strong style={{ color: '#f59e0b' }}>{expectedProgress}%</strong></span>
+                <span style={{ color: '#94a3b8' }}>Avanço Realizado: <strong style={{ color: '#06b6d4' }}>{progressPercent}%</strong></span>
+              </div>
+              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', overflow: 'hidden', display: 'flex', position: 'relative' }}>
+                <div style={{ width: `${expectedProgress}%`, background: 'rgba(245, 158, 11, 0.4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRight: '2px solid #f59e0b', zIndex: 1 }}></div>
+                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, zIndex: 2, borderRadius: progressPercent < expectedProgress ? '0 8px 8px 0' : '0' }}></div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
+              <span style={{ color: '#06b6d4', display: 'flex', alignItems: 'center', gap: '6px' }}><Brain size={14} /> Previsão Estimada (IA):</span>
+              <span style={{ color: getProjectLinearEstimate({ ...viewOnlyProject, overall_progress_percent: progressPercent, days_elapsed: computedElapsedDays }).isDelayed ? '#ef4444' : '#10b981', fontWeight: 600, textAlign: 'right' }}>
+                {getProjectLinearEstimate({ ...viewOnlyProject, overall_progress_percent: progressPercent, days_elapsed: computedElapsedDays }).text}
+              </span>
             </div>
           </div>
 
@@ -3971,6 +4060,7 @@ Assistente IA:`;
                     })
                   )}
                 </div>
+              </div>
               </div>
             );
           })()}
