@@ -24,6 +24,7 @@ export default function App() {
   // Active view states: 'projects' | 'teams' | 'companies' | 'phases' | 'history' | 's-curve' | 'ranking' | 'new-registry'
   const [activeTab, setActiveTab] = useState('projects');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isFabHovered, setIsFabHovered] = useState(false);
   
   // Registration sub-tab: 'project' | 'team' | 'tech' | 'company'
   const [regSubTab, setRegSubTab] = useState('project');
@@ -4519,6 +4520,54 @@ Assistente IA:`;
           </div>
         </div>
       )}
+
+      {/* Floating Action Button (FAB) for Novos Cadastros */}
+      <button
+        onClick={() => {
+          setActiveTab('new-registry');
+          setActiveProject(null); // Volta para a tela principal de cadastros se estivesse em uma obra detalhada
+        }}
+        className="no-print"
+        onMouseEnter={() => setIsFabHovered(true)}
+        onMouseLeave={() => setIsFabHovered(false)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          zIndex: 99,
+          height: '56px',
+          width: isFabHovered ? '180px' : '56px',
+          borderRadius: '28px',
+          background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+          color: '#090d16',
+          border: 'none',
+          boxShadow: '0 0 20px 0 rgba(6, 182, 212, 0.4), 0 4px 12px rgba(0,0,0,0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
+          padding: '0 16px',
+          gap: '8px',
+        }}
+        title="Novos Cadastros"
+      >
+        <Plus size={24} style={{ flexShrink: 0 }} />
+        {isFabHovered && (
+          <span 
+            style={{ 
+              fontWeight: 700, 
+              fontSize: '0.9rem', 
+              whiteSpace: 'nowrap',
+              animation: 'fadeIn 0.2s ease-out forwards',
+              color: '#090d16',
+            }}
+          >
+            Novo Cadastro
+          </span>
+        )}
+      </button>
     </div>
   );
 }
