@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
-  Smartphone, ShieldAlert, Check, X, ChevronRight, HardHat, Calendar,
+  Smartphone, ShieldAlert, Check, X, ChevronRight, ChevronDown, HardHat, Calendar,
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
   Send, Trash2, Upload, FileSpreadsheet
 } from 'lucide-react';
@@ -22,6 +22,7 @@ export default function App() {
 
   // Active view states: 'projects' | 'teams' | 'companies' | 'phases' | 'history' | 's-curve' | 'ranking' | 'new-registry'
   const [activeTab, setActiveTab] = useState('projects');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   
   // Registration sub-tab: 'project' | 'team' | 'tech' | 'company'
   const [regSubTab, setRegSubTab] = useState('project');
@@ -2606,26 +2607,136 @@ Assistente IA:`;
         <main style={{ padding: '0 16px 32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           {/* Main Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflowX: 'auto' }} className="no-print">
+          <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '2px', gap: '8px', overflow: 'visible', position: 'relative' }} className="no-print">
             {[
               { id: 'projects', label: 'Obras Comerciais' },
-              { id: 'teams', label: 'Equipes & Equipe' },
-              { id: 'companies', label: 'Empresas Contratadas' },
-              { id: 'phases', label: 'Checklists & Fases' },
               { id: 's-curve', label: 'Curva S & Avanço' },
-              { id: 'ranking', label: 'Ranking de Pendências' },
               { id: 'ai-chat', label: '🤖 Assistente IA' },
-              { id: 'history', label: 'Histórico & Auditoria' },
               { id: 'new-registry', label: '📝 Cadastros (+)' }
             ].map(tab => (
               <button 
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)} 
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setShowMoreMenu(false);
+                }} 
                 style={{ background: 'none', border: 'none', padding: '10px 16px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600, color: activeTab === tab.id ? '#06b6d4' : '#94a3b8', borderBottom: activeTab === tab.id ? '2px solid #06b6d4' : 'none', whiteSpace: 'nowrap' }}
               >
                 {tab.label}
               </button>
             ))}
+
+            {/* Dropdown for retracted tabs */}
+            {(() => {
+              const collapsedTabs = [
+                { id: 'teams', label: 'Equipes Fixas & Técnicos' },
+                { id: 'companies', label: 'Empresas Contratadas' },
+                { id: 'phases', label: 'Checklists & Fases' },
+                { id: 'ranking', label: 'Ranking de Pendências' },
+                { id: 'history', label: 'Histórico & Auditoria' }
+              ];
+              const isCollapsedActive = collapsedTabs.some(t => t.id === activeTab);
+              const activeCollapsed = collapsedTabs.find(t => t.id === activeTab);
+              const buttonLabel = activeCollapsed ? `Mais: ${activeCollapsed.label}` : 'Mais';
+
+              return (
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <button
+                    onClick={() => setShowMoreMenu(!showMoreMenu)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: '10px 16px',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: isCollapsedActive ? '#06b6d4' : '#94a3b8',
+                      borderBottom: isCollapsedActive ? '2px solid #06b6d4' : 'none',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    {buttonLabel}
+                    <ChevronDown size={14} style={{ transform: showMoreMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  </button>
+
+                  {showMoreMenu && (
+                    <>
+                      {/* Backdrop overlay to close on clicking outside */}
+                      <div
+                        onClick={() => setShowMoreMenu(false)}
+                        style={{
+                          position: 'fixed',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          zIndex: 998,
+                          background: 'transparent'
+                        }}
+                      />
+                      
+                      {/* Dropdown items */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 0,
+                          marginTop: '4px',
+                          background: '#111928',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '8px',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
+                          zIndex: 999,
+                          minWidth: '220px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          padding: '4px 0',
+                          backdropFilter: 'blur(12px)',
+                        }}
+                      >
+                        {collapsedTabs.map(tab => (
+                          <button
+                            key={tab.id}
+                            onClick={() => {
+                              setActiveTab(tab.id);
+                              setShowMoreMenu(false);
+                            }}
+                            style={{
+                              background: activeTab === tab.id ? 'rgba(6, 182, 212, 0.15)' : 'none',
+                              border: 'none',
+                              padding: '12px 16px',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              fontSize: '0.875rem',
+                              fontWeight: activeTab === tab.id ? 600 : 500,
+                              color: activeTab === tab.id ? '#06b6d4' : '#94a3b8',
+                              width: '100%',
+                              whiteSpace: 'nowrap',
+                              transition: 'background 0.2s',
+                            }}
+                            onMouseEnter={(e) => {
+                              if (activeTab !== tab.id) {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (activeTab !== tab.id) {
+                                e.currentTarget.style.background = 'none';
+                              }
+                            }}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Projects view */}
