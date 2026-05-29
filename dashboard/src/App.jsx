@@ -3620,12 +3620,12 @@ Assistente IA:`;
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem' }}>Emitir relatórios</p>
                     </div>
 
-                    <div onClick={() => setProjectSubTab('schedule')} className="cascade-card" style={{ padding: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #f59e0b', justifyContent: 'center' }}>
+                    <div onClick={() => setProjectSubTab('schedule')} className="cascade-card" style={{ padding: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #f59e0b', justifyContent: 'center' }} title={activePhase ? `Fase ${activePhase.phases?.phase_number} - ${activePhase.phases?.name}:\n${activePhase.phases?.description}` : ''}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
                         <Calendar size={20} /> <h3 style={{ margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Cronograma</h3>
                       </div>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {activePhase ? `Fase ${activePhase.phases?.phase_number}: ${activePhase.progress_percent}%` : 'Nenhuma fase'}
+                        {activePhase ? `Fase Atual: ${activePhase.phases?.phase_number} - ${activePhase.progress_percent}%` : 'Nenhuma fase'}
                       </p>
                     </div>
 
