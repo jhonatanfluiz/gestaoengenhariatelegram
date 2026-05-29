@@ -10,6 +10,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import AudioRecorder from 'audio-recorder-polyfill';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 // Use polyfill on Safari since it doesn't support audio/webm natively
 if (!window.MediaRecorder || (window.MediaRecorder && !window.MediaRecorder.isTypeSupported('audio/webm'))) {
@@ -6009,6 +6010,7 @@ Assistente IA:`;
           </div>
         </div>
       )}
+      <SpeedInsights />
 
     </div>
   );
