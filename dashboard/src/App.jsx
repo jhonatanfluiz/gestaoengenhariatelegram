@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Activity, CheckCircle, TrendingUp, Plus, Users, Wrench, Settings, 
   LogOut, Bell, ArrowLeft, AlertTriangle, UserCheck, RefreshCw, 
   Smartphone, ShieldAlert, Check, X, ChevronLeft, ChevronRight, ChevronDown, HardHat, Calendar,
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
-  Send, Trash2, Upload, FileSpreadsheet, Maximize2, Minimize2, Lock, Flag, Printer, MessageCircle, Camera, Image as ImageIcon
+  Send, Trash2, Upload, FileSpreadsheet, Maximize2, Minimize2, Lock, Flag, Printer, MessageCircle, Camera, Image as ImageIcon, Mic, Square
 } from 'lucide-react';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -283,8 +283,50 @@ export default function App() {
   });
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   const [uploadedData, setUploadedData] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64data = reader.result.split(',')[1];
+          handleSendChatMessage("🔊 Mensagem de Áudio enviada", base64data, 'audio/webm');
+        };
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao acessar microfone: ' + err.message, 'danger');
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const getProjectLinearEstimate = (proj) => {
     if (!proj) return { text: 'Aguardando progresso...', daysRemaining: 0, date: null, isDelayed: false };
@@ -1636,7 +1678,7 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
     }
   };
 
-  const handleSendChatMessage = async (textToSend) => {
+  const handleSendChatMessage = async (textToSend = null, audioBase64 = null, audioMimeType = null) => {
     const messageText = textToSend || chatInput;
     if (!messageText || !messageText.trim()) return;
 
@@ -1723,7 +1765,10 @@ Gestor: ${messageText}
 Assistente IA:`;
 
       const { data, error } = await supabase.functions.invoke('ai-analysis', {
-        body: { prompt: systemPrompt }
+        body: { 
+          prompt: systemPrompt,
+          ...(audioBase64 ? { audioBase64, audioMimeType } : {})
+        }
       });
 
       if (error) throw error;
@@ -4973,8 +5018,26 @@ Assistente IA:`;
                       disabled={chatLoading}
                     />
                     <button
+                      onClick={isRecording ? handleStopRecording : handleStartRecording}
+                      disabled={chatLoading}
+                      title={isRecording ? "Parar Gravação" : "Gravar Áudio"}
+                      className="btn btn-secondary"
+                      style={{ 
+                        padding: '12px', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        borderRadius: '8px',
+                        background: isRecording ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)',
+                        color: isRecording ? '#ef4444' : '#e2e8f0',
+                        border: isRecording ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'
+                      }}
+                    >
+                      {isRecording ? <Square size={16} /> : <Mic size={16} />}
+                    </button>
+                    <button
                       onClick={() => handleSendChatMessage()}
-                      disabled={chatLoading || !chatInput.trim()}
+                      disabled={chatLoading || (!chatInput.trim() && !isRecording)}
                       className="btn btn-primary"
                       style={{ padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '8px' }}
                     >
