@@ -1392,7 +1392,6 @@ export default function App() {
     setReportLoading(true);
     setAiAnalysis('');
     setAiLoading(false);
-    setShowKeyConfig(false);
     
     try {
       const relatedProjects = projects.filter(p => 
