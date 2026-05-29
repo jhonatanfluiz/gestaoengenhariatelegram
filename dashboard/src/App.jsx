@@ -2479,18 +2479,20 @@ Assistente IA:`;
                             {aiAnalysis ? 'Atualizar Análise' : 'Gerar Análise'}
                           </button>
                         )}
-                        <button 
-                          onClick={() => setShowKeyConfig(!showKeyConfig)}
-                          className="btn btn-secondary"
-                          style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                        >
-                          {showKeyConfig ? 'Ocultar Config' : 'Chave API'}
-                        </button>
+                        {!import.meta.env.VITE_GEMINI_API_KEY && (
+                          <button 
+                            onClick={() => setShowKeyConfig(!showKeyConfig)}
+                            className="btn btn-secondary"
+                            style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                          >
+                            {showKeyConfig ? 'Ocultar Config' : 'Chave API'}
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     {/* Gemini Key Config Form */}
-                    {(!(localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) || showKeyConfig) && (
+                    {!import.meta.env.VITE_GEMINI_API_KEY && (!localStorage.getItem('gemini_api_key') || showKeyConfig) && (
                       <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
                         <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
                           Para ativar a análise de IA, insira sua chave gratuita do Gemini (gerada no Google AI Studio). A chave será salva localmente e com segurança em seu navegador.
