@@ -426,6 +426,7 @@ export default function App() {
   const [newTeamManagerId, setNewTeamManagerId] = useState('');
 
   const [newManagerName, setNewManagerName] = useState('');
+  const [newManagerIsReadonly, setNewManagerIsReadonly] = useState(false);
   const [newManagerEmail, setNewManagerEmail] = useState('');
   const [newManagerPassword, setNewManagerPassword] = useState('');
   const [newManagerAccessLevel, setNewManagerAccessLevel] = useState('restricted');
@@ -1124,6 +1125,7 @@ export default function App() {
           id: newUserId,
           auth_user_id: newUserId,
           full_name: newManagerName,
+          is_readonly: newManagerIsReadonly,
           email: newManagerEmail,
           role: 'manager',
           access_level: newManagerAccessLevel
@@ -1138,6 +1140,7 @@ export default function App() {
 
       showToast(`Gestor "${newManagerName}" cadastrado com sucesso!`);
       setNewManagerName('');
+      setNewManagerIsReadonly(false);
       setNewManagerEmail('');
       setNewManagerPassword('');
       setNewManagerAccessLevel('restricted');
@@ -3475,20 +3478,22 @@ Assistente IA:`;
               {globalIssues ? globalIssues.length : 0}
             </span>
           </button>
-          <button 
-            onClick={() => { setActiveTab('new-registry'); setActiveProject(null); }} 
-            className="btn" 
-            style={{ padding: '8px 16px', fontSize: '0.85rem', background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', color: '#090d16', fontWeight: 700, border: 'none', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 0 15px rgba(6, 182, 212, 0.4)', transition: 'transform 0.2s' }}
-            onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <Plus size={16} /> Novo Cadastro
-          </button>
+          {!userProfile?.is_readonly && (
+            <button 
+              onClick={() => { setActiveTab('new-registry'); setActiveProject(null); }} 
+              className="btn" 
+              style={{ padding: '8px 16px', fontSize: '0.85rem', background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', color: '#090d16', fontWeight: 700, border: 'none', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 0 15px rgba(6, 182, 212, 0.4)', transition: 'transform 0.2s' }}
+              onMouseOver={e => e.currentTarget.style.transform = 'scale(1.05)'}
+              onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <Plus size={16} /> Novo Cadastro
+            </button>
+          )}
           {userProfile && (
             <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>
               <span style={{ fontWeight: 600, display: 'block', color: '#ffffff' }}>{userProfile.full_name}</span>
               <span style={{ color: '#06b6d4', fontSize: '0.75rem', fontWeight: 600 }}>
-                {userProfile.role === 'master' ? '👑 Master Admin' : `Gestor (${userProfile.access_level === 'unrestricted' ? 'Irrestrito' : 'Restrito'})`}
+                {userProfile.role === 'master' ? '👑 Master Admin' : `Gestor (${userProfile.access_level === 'unrestricted' ? 'Irrestrito' : 'Restrito'})`} {userProfile.is_readonly ? '👁️ [Visualizador]' : ''}
               </span>
             </div>
           )}
@@ -4236,20 +4241,22 @@ Assistente IA:`;
                         Acompanhar Fases
                         <ChevronRight size={16} />
                       </button>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button 
-                          onClick={() => startEdit('project', proj)} 
-                          className="btn btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}
-                        >
-                          Editar
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteProject(proj.project_id)} 
-                          className="btn btn-danger" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}
-                        >
-                          Excluir
-                        </button>
-                      </div>
+                      {!userProfile?.is_readonly && (
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            onClick={() => startEdit('project', proj)} 
+                            className="btn btn-secondary" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}
+                          >
+                            Editar
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteProject(proj.project_id)} 
+                            className="btn btn-danger" style={{ flex: 1, padding: '8px', fontSize: '0.8rem' }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -4419,20 +4426,22 @@ Assistente IA:`;
                               Gestor: {t.profiles?.full_name || 'Nenhum'}
                             </p>
                           </div>
-                          <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); startEdit('team', t); }} 
-                              className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
-                            >
-                              Editar
-                            </button>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleDeleteTeam(t.id); }} 
-                              className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
-                            >
-                              Excluir
-                            </button>
-                          </div>
+                          {!userProfile?.is_readonly && (
+                            <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); startEdit('team', t); }} 
+                                className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                              >
+                                Editar
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleDeleteTeam(t.id); }} 
+                                className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          )}
                         </div>
                       );
                     })
@@ -4537,20 +4546,22 @@ Assistente IA:`;
                                       {linkedTechsCount} {linkedTechsCount === 1 ? 'técnico cadastrado' : 'técnicos cadastrados'}
                                     </p>
                                   </div>
-                                  <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); startEdit('company', c); }} 
-                                      className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
-                                    >
-                                      Editar
-                                    </button>
-                                    <button 
-                                      onClick={(e) => { e.stopPropagation(); handleDeleteCompany(c.id); }} 
-                                      className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
-                                    >
-                                      Excluir
-                                    </button>
-                                  </div>
+                                  {!userProfile?.is_readonly && (
+                                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); startEdit('company', c); }} 
+                                        className="btn btn-secondary" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button 
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteCompany(c.id); }} 
+                                        className="btn btn-danger" style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem' }}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -4610,18 +4621,22 @@ Assistente IA:`;
                                   </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '10px', flexWrap: 'wrap', marginTop: '4px' }}>
-                                  <button 
-                                    onClick={() => startEdit('tech', tech)} 
-                                    className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
-                                  >
-                                    Editar
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteTechnician(tech.id)} 
-                                    className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
-                                  >
-                                    Excluir
-                                  </button>
+                                  {!userProfile?.is_readonly && (
+                                    <>
+                                      <button 
+                                        onClick={() => startEdit('tech', tech)} 
+                                        className="btn btn-secondary" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteTechnician(tech.id)} 
+                                        className="btn btn-danger" style={{ flex: 1, padding: '4px 8px', fontSize: '0.7rem', minWidth: '60px' }}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </>
+                                  )}
                                   <button 
                                     onClick={() => handleSendTestMessage(tech)} 
                                     className="btn btn-secondary" style={{ flex: '1 0 100%', padding: '6px 8px', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', border: '1px solid #10b981', color: '#10b981', marginTop: '4px' }}
@@ -5525,6 +5540,18 @@ Assistente IA:`;
                         <option value="unrestricted">Irrestrito (Acesso a todas as obras do sistema)</option>
                       </select>
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                      <input 
+                        type="checkbox" 
+                        id="is_readonly" 
+                        checked={newManagerIsReadonly}
+                        onChange={(e) => setNewManagerIsReadonly(e.target.checked)}
+                        style={{ cursor: 'pointer', width: '18px', height: '18px' }}
+                      />
+                      <label htmlFor="is_readonly" style={{ margin: 0, cursor: 'pointer', fontSize: '0.9rem' }}>
+                        Acesso apenas para visualização (Read-Only)
+                      </label>
+                    </div>
                     <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Gestor</button>
                   </form>
 
@@ -5558,22 +5585,31 @@ Assistente IA:`;
                                   }}>
                                     {mgr.access_level === 'unrestricted' ? 'Irrestrito' : 'Restrito'}
                                   </span>
+                                  {mgr.is_readonly && (
+                                    <span style={{ marginLeft: '8px', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                                      Visualizador
+                                    </span>
+                                  )}
                                 </td>
                                 <td style={{ padding: '12px 8px', display: 'flex', gap: '8px' }}>
-                                  <button 
-                                    onClick={() => handleToggleManagerAccess(mgr)} 
-                                    className="btn"
-                                    style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)', cursor: 'pointer' }}
-                                  >
-                                    Alternar Acesso
-                                  </button>
-                                  <button 
-                                    onClick={() => handleDeleteManager(mgr)} 
-                                    className="btn"
-                                    style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}
-                                  >
-                                    Excluir
-                                  </button>
+                                  {!userProfile?.is_readonly && (
+                                    <>
+                                      <button 
+                                        onClick={() => handleToggleManagerAccess(mgr)} 
+                                        className="btn"
+                                        style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(6,182,212,0.1)', color: '#06b6d4', border: '1px solid rgba(6,182,212,0.2)', cursor: 'pointer' }}
+                                      >
+                                        Alternar Acesso
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteManager(mgr)} 
+                                        className="btn"
+                                        style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </>
+                                  )}
                                 </td>
                               </tr>
                             ))
