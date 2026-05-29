@@ -82,6 +82,8 @@ export default function App() {
             .select('*')
             .eq('obra_id', viewOnlyProjectId);
           if (issuesData) setViewOnlyIssues(issuesData);
+          
+          setSCurveProjId(viewOnlyProjectId);
         } catch (error) {
           console.error("Error fetching view only data:", error);
         } finally {
@@ -564,12 +566,12 @@ export default function App() {
 
   // Fetch S-Curve data when a project is selected
   useEffect(() => {
-    if (session && sCurveProjId) {
+    if ((session || viewOnlyProjectId) && sCurveProjId) {
       fetchSCurveData(sCurveProjId);
     } else {
       setSCurveData([]);
     }
-  }, [sCurveProjId, session]);
+  }, [sCurveProjId, session, viewOnlyProjectId]);
 
   const showToast = (text, type = 'success') => {
     setMsgNotification({ text, type });
@@ -2719,7 +2721,10 @@ Assistente IA:`;
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {sCurveData.map((d, index) => {
-              const proj = projects.find(p => p.project_id === sCurveProjId);
+              const proj = (viewOnlyProject && viewOnlyProject.id === sCurveProjId) 
+                ? viewOnlyProject 
+                : projects.find(p => p.project_id === sCurveProjId);
+              
               let expectedProgress = 0;
               if (proj) {
                 const start = new Date(proj.start_date).getTime();
