@@ -1117,6 +1117,7 @@ export default function App() {
           id: newUserId,
           auth_user_id: newUserId,
           full_name: newManagerName,
+          email: newManagerEmail,
           role: 'manager',
           access_level: newManagerAccessLevel
         });
@@ -5461,6 +5462,7 @@ Assistente IA:`;
                         <thead>
                           <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
                             <th style={{ padding: '12px 8px' }}>Nome Completo</th>
+                            <th style={{ padding: '12px 8px' }}>E-mail</th>
                             <th style={{ padding: '12px 8px' }}>Nível de Acesso</th>
                             <th style={{ padding: '12px 8px' }}>Ações</th>
                           </tr>
@@ -5468,12 +5470,13 @@ Assistente IA:`;
                         <tbody>
                           {managers.length === 0 ? (
                             <tr>
-                              <td colSpan="3" style={{ padding: '16px 8px', color: '#94a3b8', textAlign: 'center' }}>Nenhum gestor cadastrado.</td>
+                              <td colSpan="4" style={{ padding: '16px 8px', color: '#94a3b8', textAlign: 'center' }}>Nenhum gestor cadastrado.</td>
                             </tr>
                           ) : (
                             managers.map(mgr => (
                               <tr key={mgr.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                 <td style={{ padding: '12px 8px', fontWeight: 500 }}>{mgr.full_name}</td>
+                                <td style={{ padding: '12px 8px', color: '#cbd5e1' }}>{mgr.email || '—'}</td>
                                 <td style={{ padding: '12px 8px' }}>
                                   <span style={{ 
                                     padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600,
