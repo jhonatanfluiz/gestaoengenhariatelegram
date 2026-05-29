@@ -378,7 +378,7 @@ async function askPhaseQuestion(
           
         const promptText = `O técnico finalizou o checklist da obra "${projDetails?.name || 'Projeto'}". Escreva uma mensagem muito curta e amigável (máximo 2 parágrafos pequenos) parabenizando a equipe pela conclusão do checklist e motivando-os para os próximos passos. Se a evolução do projeto não for tão positiva, seja encorajador e motivacional. Se estiver no prazo ou adiantado, parabenize com entusiasmo. Assine como "Seu Assistente IA".`;
         
-        const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] })
