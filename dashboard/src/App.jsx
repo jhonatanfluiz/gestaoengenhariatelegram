@@ -323,7 +323,7 @@ export default function App() {
           }
           // Strip codecs=... if present
           const cleanMimeType = actualMimeType.split(';')[0];
-          const geminiMimeType = cleanMimeType === 'audio/mp4' ? 'audio/aac' : cleanMimeType;
+          const geminiMimeType = cleanMimeType === 'audio/mp4' ? 'video/mp4' : cleanMimeType;
           handleSendChatMessage("🔊 Mensagem de Áudio enviada", base64data, geminiMimeType);
         };
         stream.getTracks().forEach(track => track.stop());
