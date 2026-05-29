@@ -292,7 +292,15 @@ export default function App() {
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      
+      let options = {};
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        options.mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        options.mimeType = 'audio/mp4';
+      }
+      
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -303,12 +311,19 @@ export default function App() {
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const actualMimeType = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
           const base64data = reader.result.split(',')[1];
-          handleSendChatMessage("🔊 Mensagem de Áudio enviada", base64data, 'audio/webm');
+          if (!base64data) {
+            showToast('Erro: gravação de áudio vazia. Tente novamente.', 'danger');
+            return;
+          }
+          // Strip codecs=... if present
+          const cleanMimeType = actualMimeType.split(';')[0];
+          handleSendChatMessage("🔊 Mensagem de Áudio enviada", base64data, cleanMimeType);
         };
         stream.getTracks().forEach(track => track.stop());
       };
