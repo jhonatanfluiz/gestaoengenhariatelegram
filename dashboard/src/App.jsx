@@ -26,6 +26,8 @@ export default function App() {
 
   // View Only state
   const [viewOnlyProjectId] = useState(() => new URLSearchParams(window.location.search).get('view_report'));
+  const [clientIsAuthenticated, setClientIsAuthenticated] = useState(false);
+  const [clientPasswordInput, setClientPasswordInput] = useState('');
   const [viewOnlyProject, setViewOnlyProject] = useState(null);
   const [viewOnlyPhases, setViewOnlyPhases] = useState([]);
   const [viewOnlyLoading, setViewOnlyLoading] = useState(false);
@@ -211,6 +213,11 @@ export default function App() {
   const [editTelegram, setEditTelegram] = useState('');
   const [editCnpj, setEditCnpj] = useState('');
   const [editFixedTeamId, setEditFixedTeamId] = useState('');
+  const [editCapacity, setEditCapacity] = useState('');
+  const [editStops, setEditStops] = useState('');
+  const [editType, setEditType] = useState('passageiro');
+  const [editAddress, setEditAddress] = useState('');
+  const [editClientPassword, setEditClientPassword] = useState('');
 
 
   // PWA Install State
@@ -321,6 +328,11 @@ export default function App() {
   const [newProjNotificationFreq, setNewProjNotificationFreq] = useState('weekly');
   const [newProjStartDate, setNewProjStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [newProjDeadline, setNewProjDeadline] = useState('');
+  const [newProjCapacity, setNewProjCapacity] = useState('');
+  const [newProjStops, setNewProjStops] = useState('');
+  const [newProjType, setNewProjType] = useState('passageiro');
+  const [newProjAddress, setNewProjAddress] = useState('');
+  const [newProjClientPassword, setNewProjClientPassword] = useState('');
 
   const [newTechName, setNewTechName] = useState('');
   const [newTechTelegram, setNewTechTelegram] = useState('');
@@ -864,7 +876,12 @@ export default function App() {
         assigned_technician_id: newProjTechId || null,
         notification_frequency: newProjNotificationFreq || 'weekly',
         start_date: newProjStartDate,
-        deadline_date: newProjDeadline
+        deadline_date: newProjDeadline,
+        capacidade_pessoas: newProjCapacity ? parseInt(newProjCapacity, 10) : null,
+        numero_paradas: newProjStops ? parseInt(newProjStops, 10) : null,
+        tipo_elevador: newProjType,
+        endereco: newProjAddress,
+        senha_cliente: newProjClientPassword
       })
       .select()
       .single();
@@ -880,6 +897,11 @@ export default function App() {
       setNewProjManagerId('');
       setNewProjTechId('');
       setNewProjNotificationFreq('weekly');
+      setNewProjCapacity('');
+      setNewProjStops('');
+      setNewProjType('passageiro');
+      setNewProjAddress('');
+      setNewProjClientPassword('');
       setActiveTab('projects');
       fetchDashboardData();
     }
@@ -1158,6 +1180,11 @@ export default function App() {
       setEditNotificationFreq(item.notification_frequency || 'weekly');
       setEditStartDate(item.start_date || '');
       setEditDeadlineDate(item.deadline_date || '');
+      setEditCapacity(item.capacidade_pessoas || '');
+      setEditStops(item.numero_paradas || '');
+      setEditType(item.tipo_elevador || 'passageiro');
+      setEditAddress(item.endereco || '');
+      setEditClientPassword(item.senha_cliente || '');
     } else if (type === 'team') {
       setEditName(item.name || '');
       setEditCompanyId(item.company_id || '');
@@ -1262,7 +1289,12 @@ export default function App() {
         assigned_technician_id: editTechId || null,
         notification_frequency: editNotificationFreq || 'weekly',
         start_date: editStartDate,
-        deadline_date: editDeadlineDate
+        deadline_date: editDeadlineDate,
+        capacidade_pessoas: editCapacity ? parseInt(editCapacity, 10) : null,
+        numero_paradas: editStops ? parseInt(editStops, 10) : null,
+        tipo_elevador: editType,
+        endereco: editAddress,
+        senha_cliente: editClientPassword
       })
       .eq('id', id);
 
@@ -2599,6 +2631,30 @@ Assistente IA:`;
                 <input type="text" value={editModel} onChange={e => setEditModel(e.target.value)} required />
               </div>
               <div>
+                <label>Capacidade de Pessoas</label>
+                <input type="number" value={editCapacity} onChange={e => setEditCapacity(e.target.value)} placeholder="Ex: 8" />
+              </div>
+              <div>
+                <label>Número de Paradas</label>
+                <input type="number" value={editStops} onChange={e => setEditStops(e.target.value)} placeholder="Ex: 10" />
+              </div>
+              <div>
+                <label>Tipo de Elevador</label>
+                <select value={editType} onChange={e => setEditType(e.target.value)}>
+                  <option value="passageiro">Passageiro</option>
+                  <option value="carga">Carga</option>
+                  <option value="maca">Maca</option>
+                </select>
+              </div>
+              <div>
+                <label>Endereço</label>
+                <input type="text" value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="Ex: Rua Vergueiro, 1000 - SP" style={{ width: '100%' }} />
+              </div>
+              <div>
+                <label>Senha do Cliente (6 dígitos)</label>
+                <input type="text" value={editClientPassword} onChange={e => setEditClientPassword(e.target.value.replace(/\\D/g, '').slice(0, 6))} placeholder="Ex: 123456" maxLength={6} minLength={6} style={{ width: '100%' }} />
+              </div>
+              <div>
                 <label>Empresa Contratada Proprietária</label>
                 <select 
                   value={editCompanyId} 
@@ -2958,6 +3014,42 @@ Assistente IA:`;
       );
     }
 
+    if (viewOnlyProject.senha_cliente && !clientIsAuthenticated) {
+      return (
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '16px', minHeight: '100vh', background: '#020617' }}>
+          <div className="glass-panel animate-fade-in" style={{ padding: '40px', width: '100%', maxWidth: '400px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ margin: '0 auto', background: 'rgba(6,182,212,0.1)', padding: '16px', borderRadius: '50%' }}>
+              <Lock size={48} style={{ color: '#06b6d4' }} />
+            </div>
+            <h2 style={{ margin: 0, color: '#fff', fontSize: '1.5rem' }}>Área do Cliente</h2>
+            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem', lineHeight: '1.5' }}>Digite a senha de 6 dígitos fornecida para acompanhar a obra <strong style={{ color: '#fff' }}>{viewOnlyProject.name}</strong>.</p>
+            
+            <input 
+              type="password" 
+              value={clientPasswordInput} 
+              onChange={e => setClientPasswordInput(e.target.value.replace(/\\D/g, '').slice(0, 6))}
+              placeholder="******"
+              style={{ textAlign: 'center', fontSize: '2rem', letterSpacing: '12px', padding: '16px', borderRadius: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}
+            />
+            
+            <button 
+              onClick={() => {
+                if (clientPasswordInput === viewOnlyProject.senha_cliente) {
+                  setClientIsAuthenticated(true);
+                } else {
+                  showToast('Senha incorreta.', 'danger');
+                }
+              }}
+              className="btn btn-primary"
+              style={{ width: '100%', padding: '16px', fontSize: '1.1rem', borderRadius: '12px', marginTop: '8px' }}
+            >
+              Acessar Painel
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     const completedCount = viewOnlyPhases.filter(p => p.progress_percent === 100).length;
     const progressPercent = Math.round((completedCount / 20) * 100);
     const aiEstText = projectForecast[viewOnlyProject.id];
@@ -3011,29 +3103,6 @@ Assistente IA:`;
               {showMobileSchedule ? 'Ocultar Cronograma' : 'Gerar Cronograma Inteligente'}
             </button>
 
-            <div style={{ marginTop: '12px' }}>
-              <button
-                onClick={() => { setIssuePhaseId(null); setShowIssueModal(true); }}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
-                }}
-              >
-                <AlertTriangle size={20} />
-                Relatar Ocorrência de Obra
-              </button>
-            </div>
 
             {showMobileSchedule && (
               <div style={{ marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -3082,13 +3151,7 @@ Assistente IA:`;
                               </div>
                             )}
                           </div>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setIssuePhaseId(phase.phases?.id); setShowIssueModal(true); }}
-                            style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', marginLeft: '8px' }}
-                            title="Relatar Ocorrência"
-                          >
-                            <AlertTriangle size={12} /> Relatar
-                          </button>
+
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.75rem' }}>
                           <span style={{ color: statusColor }}>Até: {phaseDate.toLocaleDateString('pt-BR')}</span>
@@ -3160,9 +3223,9 @@ Assistente IA:`;
                 <span style={{ color: '#94a3b8' }}>Avanço Esperado: <strong style={{ color: '#f59e0b' }}>{expectedProgress}%</strong></span>
                 <span style={{ color: '#94a3b8' }}>Avanço Realizado: <strong style={{ color: '#06b6d4' }}>{progressPercent}%</strong></span>
               </div>
-              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', overflow: 'hidden', display: 'flex', position: 'relative' }}>
-                <div style={{ width: `${expectedProgress}%`, background: 'rgba(245, 158, 11, 0.4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRight: '2px solid #f59e0b', zIndex: 1 }}></div>
-                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, zIndex: 2, borderRadius: progressPercent < expectedProgress ? '0 8px 8px 0' : '0' }}></div>
+              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', position: 'relative' }}>
+                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRadius: '8px' }}></div>
+                <div style={{ width: '3px', background: '#f59e0b', height: '24px', position: 'absolute', left: `calc(${expectedProgress}% - 1px)`, top: '-4px', zIndex: 10, boxShadow: '0 0 8px #f59e0b', borderRadius: '2px' }} title={`Esperado: ${expectedProgress}%`}></div>
               </div>
             </div>
 
@@ -3873,6 +3936,40 @@ Assistente IA:`;
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
                 }).length;
 
+                const handleOpenGoogleEarth = (e) => {
+                  e.stopPropagation();
+                  const projectsWithAddress = projects.filter(p => p.endereco);
+                  if (projectsWithAddress.length === 0) {
+                    showToast('Nenhuma obra com endereço cadastrado para exibir no mapa.', 'danger');
+                    return;
+                  }
+
+                  let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n  <Document>\n    <name>Mapa de Obras - ElevateSync</name>\n`;
+
+                  projectsWithAddress.forEach(proj => {
+                    kmlContent += `    <Placemark>\n      <name>${proj.project_name || 'Obra'}</name>\n      <description>Modelo: ${proj.elevator_model || '-'} | Empresa: ${proj.company_name || '-'}</description>\n      <address>${proj.endereco}</address>\n    </Placemark>\n`;
+                  });
+
+                  kmlContent += `  </Document>\n</kml>`;
+
+                  const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+                  const url = URL.createObjectURL(blob);
+                  
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'obras_elevatesync.kml';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  
+                  showToast('Arquivo KML gerado! Abra-o no Google Earth.', 'info');
+                  
+                  setTimeout(() => {
+                    window.open('https://earth.google.com/web/', '_blank');
+                  }, 1500);
+                };
+
                 const cardStyle = { 
                   flex: '1 1 calc(33.333% - 20px)', 
                   minWidth: '280px', 
@@ -3969,6 +4066,20 @@ Assistente IA:`;
                       </div>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Logs completos do sistema</p>
                     </div>
+
+                    <div onClick={handleOpenGoogleEarth} style={{...cardStyle, borderTop: '4px solid #f43f5e'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f43f5e' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🌍 Mapa de Obras</h3>
+                      </div>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar obras no Google Earth</p>
+                    </div>
+
+                    <div onClick={() => setActiveTab('client-links')} style={{...cardStyle, borderTop: '4px solid #14b8a6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#14b8a6' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📱 Informações Cliente</h3>
+                      </div>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Links para visualização dos clientes</p>
+                    </div>
                   </>
                 );
               })()}
@@ -3983,6 +4094,66 @@ Assistente IA:`;
               >
                 <ArrowLeft size={16} /> Voltar ao Menu Principal
               </button>
+            </div>
+          )}
+
+          {/* Client Links view */}
+          {activeTab === 'client-links' && (
+            <div className="animate-fade-in" style={{ width: '100%', maxWidth: '1000px', margin: '0 auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#fff', margin: 0 }}>📱 Links para Clientes</h2>
+              </div>
+              <div className="glass-panel" style={{ padding: '24px', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8' }}>
+                      <th style={{ padding: '12px 8px', fontWeight: 600 }}>Obra</th>
+                      <th style={{ padding: '12px 8px', fontWeight: 600 }}>Senha de Acesso</th>
+                      <th style={{ padding: '12px 8px', fontWeight: 600, textAlign: 'right' }}>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projects.map(proj => {
+                      const link = window.location.origin + window.location.pathname + '?view_report=' + proj.project_id;
+                      return (
+                        <tr key={proj.project_id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '16px 8px', color: '#e2e8f0' }}>
+                            <strong>{proj.project_name}</strong><br/>
+                            <small style={{ color: '#94a3b8' }}>{proj.elevator_model}</small>
+                          </td>
+                          <td style={{ padding: '16px 8px', color: '#e2e8f0' }}>
+                            <span style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', letterSpacing: '2px', fontWeight: 'bold' }}>
+                              {proj.senha_cliente || 'Sem senha'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '16px 8px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`Acompanhe o andamento da sua obra: ${link} \\nSenha: ${proj.senha_cliente || 'N/A'}`);
+                                  showToast('Link e senha copiados!', 'success');
+                                }}
+                                className="btn btn-secondary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                              >
+                                Copiar Link
+                              </button>
+                              <button 
+                                onClick={() => window.open(link, '_blank')}
+                                className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                              >
+                                Visualizar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {projects.length === 0 && (
+                  <p style={{ textAlign: 'center', color: '#94a3b8', padding: '24px 0' }}>Nenhuma obra cadastrada.</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -4035,6 +4206,30 @@ Assistente IA:`;
                           {!proj.notification_frequency && 'Semanal'}
                         </strong>
                       </p>
+
+                      {proj.tipo_elevador && (
+                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                          <Settings size={14} /> Tipo: {proj.tipo_elevador.charAt(0).toUpperCase() + proj.tipo_elevador.slice(1)}
+                        </p>
+                      )}
+                      {(proj.numero_paradas || proj.capacidade_pessoas) && (
+                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                          <Activity size={14} /> Paradas / Cap.: {proj.numero_paradas || '-'} {proj.numero_paradas ? 'paradas' : ''} / {proj.capacidade_pessoas || '-'} pes.
+                        </p>
+                      )}
+                      {proj.endereco && (
+                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                          <Flag size={14} /> Endereço: 
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(proj.endereco)}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={{ color: '#06b6d4', textDecoration: 'none' }}
+                          >
+                            Abrir Maps
+                          </a>
+                        </p>
+                      )}
                       
                       {/* Progress Metrics (Realizado vs Esperado) */}
                       <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -5164,6 +5359,55 @@ Assistente IA:`;
                   <div>
                     <label>Modelo do Elevador</label>
                     <input type="text" value={newProjModel} onChange={e => setNewProjModel(e.target.value)} required placeholder="Ex: Schindler 5500" />
+                  </div>
+                  <div>
+                    <label>Capacidade de Pessoas</label>
+                    <input type="number" value={newProjCapacity} onChange={e => setNewProjCapacity(e.target.value)} placeholder="Ex: 8" />
+                  </div>
+                  <div>
+                    <label>Número de Paradas</label>
+                    <input type="number" value={newProjStops} onChange={e => setNewProjStops(e.target.value)} placeholder="Ex: 10" />
+                  </div>
+                  <div>
+                    <label>Tipo de Elevador</label>
+                    <select value={newProjType} onChange={e => setNewProjType(e.target.value)}>
+                      <option value="passageiro">Passageiro</option>
+                      <option value="carga">Carga</option>
+                      <option value="maca">Maca</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Endereço</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input type="text" value={newProjAddress} onChange={e => setNewProjAddress(e.target.value)} placeholder="Ex: Rua Vergueiro, 1000 - SP" style={{ flex: 1 }} />
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (newProjAddress) {
+                            window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(newProjAddress)}`, '_blank');
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff',
+                          borderRadius: '8px',
+                          padding: '0 16px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title="Abrir no Google Maps"
+                      >
+                        📍 Maps
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label>Senha do Cliente (6 dígitos)</label>
+                    <input type="text" value={newProjClientPassword} onChange={e => setNewProjClientPassword(e.target.value.replace(/\\D/g, '').slice(0, 6))} placeholder="Ex: 123456" maxLength={6} minLength={6} style={{ width: '100%' }} />
+                    <small style={{ color: '#94a3b8' }}>Será exigida quando o cliente acessar o link público da obra.</small>
                   </div>
                   <div>
                     <label>Empresa Contratada Proprietária</label>
