@@ -7,6 +7,14 @@ import {
   Building, Briefcase, Clock, FileText, BarChart2, Shield, Eye, Brain, Sparkles,
   Send, Trash2, Upload, FileSpreadsheet, Maximize2, Minimize2, Lock, Flag, Printer, MessageCircle, Camera, Image as ImageIcon, Mic, Square
 } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import AudioRecorder from 'audio-recorder-polyfill';
+
+// Use polyfill on Safari since it doesn't support audio/webm natively
+if (!window.MediaRecorder || (window.MediaRecorder && !window.MediaRecorder.isTypeSupported('audio/webm'))) {
+  window.MediaRecorder = AudioRecorder;
+}
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -311,8 +319,9 @@ export default function App() {
       };
 
       mediaRecorder.onstop = () => {
-        const actualMimeType = mediaRecorder.mimeType || 'audio/webm';
-        const audioBlob = new Blob(audioChunksRef.current, { type: actualMimeType });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/wav' });
+        const actualMimeType = audioBlob.type;
+        
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
         reader.onloadend = () => {
