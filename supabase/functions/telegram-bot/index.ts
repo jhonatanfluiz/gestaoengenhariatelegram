@@ -766,7 +766,8 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
         .update({ 
           started: false, 
           progress_percent: 0,
-          updated_at: new Date().toISOString() 
+          updated_at: new Date().toISOString(),
+          updated_by: profile.id
         })
         .eq('project_id', projectId)
         .eq('phase_id', phaseId);
@@ -800,7 +801,8 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
       .update({
         started: true,
         progress_percent: progressPercent,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        updated_by: profileId
       })
       .eq('project_id', projectId)
       .eq('phase_id', phaseId);

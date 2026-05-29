@@ -110,6 +110,8 @@ export default function App() {
   const [phasesList, setPhasesList] = useState([]);
   const [allLogs, setAllLogs] = useState([]);
   const [pendingRankings, setPendingRankings] = useState([]);
+  const [globalIssues, setGlobalIssues] = useState([]);
+  const [showGlobalIssuesModal, setShowGlobalIssuesModal] = useState(false);
   
   // Active selected elements
   const [activeProject, setActiveProject] = useState(null);
@@ -557,6 +559,12 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => {
         fetchDashboardData();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mensagens_obra' }, () => {
+        fetchDashboardData();
+        if (activeProject) {
+          fetchProjectIssues(activeProject.project_id);
+        }
+      })
       .subscribe();
 
     return () => {
@@ -674,6 +682,20 @@ export default function App() {
 
     if (err8) console.error(err8);
     else setPendingRankings(rank || []);
+
+    // 9. Fetch global pending issues
+    let issuesQuery = supabase.from('mensagens_obra').select('*').eq('status', 'Pendente');
+    if (userProfile && userProfile.role === 'manager' && userProfile.access_level === 'restricted') {
+      const assignedProjIds = projs ? projs.map(p => p.project_id) : [];
+      if (assignedProjIds.length > 0) {
+        issuesQuery = issuesQuery.in('obra_id', assignedProjIds);
+      } else {
+        issuesQuery = issuesQuery.eq('obra_id', '00000000-0000-0000-0000-000000000000');
+      }
+    }
+    const { data: gIssues, error: gErr } = await issuesQuery.order('created_at', { ascending: false });
+    if (gErr) console.error(gErr);
+    else setGlobalIssues(gIssues || []);
   };
 
   const fetchProjectPhases = async (projId) => {
@@ -3367,6 +3389,19 @@ Assistente IA:`;
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button 
+            onClick={() => setShowGlobalIssuesModal(true)} 
+            className="btn" 
+            style={{ padding: '8px', fontSize: '0.85rem', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', transition: 'transform 0.2s', width: '38px', height: '38px' }}
+            onMouseOver={e => e.currentTarget.style.transform = 'scale(1.1)'}
+            onMouseOut={e => e.currentTarget.style.transform = 'scale(1)'}
+            title="Ocorrências Pendentes"
+          >
+            <Bell size={18} />
+            <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: '#ef4444', color: '#fff', fontSize: '0.65rem', fontWeight: 'bold', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulseGlow 2s infinite' }}>
+              {globalIssues ? globalIssues.length : 0}
+            </span>
+          </button>
+          <button 
             onClick={() => { setActiveTab('new-registry'); setActiveProject(null); }} 
             className="btn" 
             style={{ padding: '8px 16px', fontSize: '0.85rem', background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)', color: '#090d16', fontWeight: 700, border: 'none', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 0 15px rgba(6, 182, 212, 0.4)', transition: 'transform 0.2s' }}
@@ -5720,12 +5755,75 @@ Assistente IA:`;
               borderRadius: '8px',
               padding: '6px 12px',
             }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#06b6d4', display: 'block' }}>Assistente IA</span>
-              <span style={{ fontSize: '0.65rem', color: '#94a3b8' }}>Clique para abrir</span>
             </div>
           </div>
         </div>
       )}
+
+      {/* Global Issues Modal */}
+      {showGlobalIssuesModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)' }}>
+          <div className="glass-panel" style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '24px', borderRadius: '16px', position: 'relative' }}>
+            <button onClick={() => setShowGlobalIssuesModal(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <X size={24} />
+            </button>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: 0, color: '#ef4444' }}>
+              <AlertTriangle size={24} /> Ocorrências Pendentes ({globalIssues.length})
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '20px' }}>Estas são todas as ocorrências reportadas nas obras que ainda não foram marcadas como resolvidas.</p>
+            
+            {globalIssues.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: '#10b981', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                <CheckCircle size={40} style={{ margin: '0 auto 10px', display: 'block' }} />
+                Nenhuma ocorrência pendente no momento. Bom trabalho!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {globalIssues.map(issue => {
+                  const proj = projects.find(p => p.project_id === issue.obra_id) || {};
+                  return (
+                    <div key={issue.id} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(239, 68, 68, 0.2)', borderLeft: '4px solid #ef4444', borderRadius: '8px', padding: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <div>
+                          <h4 style={{ margin: '0 0 4px', color: '#f8fafc', fontSize: '1rem' }}>Obra: {proj.name || 'Desconhecida'}</h4>
+                          <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px' }}>
+                            {format(new Date(issue.created_at), "dd/MM/yyyy 'às' HH:mm")}
+                          </span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setShowGlobalIssuesModal(false);
+                            const foundProj = projects.find(p => p.project_id === issue.obra_id);
+                            if (foundProj) {
+                              setActiveProject(foundProj);
+                              setActiveTab('issues');
+                            }
+                          }}
+                          className="btn btn-secondary" 
+                          style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+                        >
+                          Ver na Obra <ArrowLeft size={14} style={{ transform: 'rotate(180deg)' }} />
+                        </button>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '6px', color: '#cbd5e1', fontSize: '0.9rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
+                        {issue.texto_tecnico}
+                      </div>
+                      {issue.imagem_url && (
+                        <div style={{ marginTop: '10px' }}>
+                          <a href={issue.imagem_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#06b6d4', textDecoration: 'none', background: 'rgba(6, 182, 212, 0.1)', padding: '4px 10px', borderRadius: '4px' }}>
+                            <ImageIcon size={14} /> Ver Imagem Anexada
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

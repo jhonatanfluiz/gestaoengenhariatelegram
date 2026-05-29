@@ -11,8 +11,10 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let lastErrorMsg = '';
   try {
-    const { prompt } = await req.json();
+    const body = await req.json();
+    const { prompt, audioBase64, audioMimeType } = body;
 
     if (!prompt) {
       throw new Error('O campo "prompt" é obrigatório.');
@@ -25,8 +27,6 @@ serve(async (req) => {
     }
 
     const candidates = [
-      { version: 'v1beta', model: 'gemini-2.5-flash' },
-      { version: 'v1', model: 'gemini-2.5-flash' },
       { version: 'v1beta', model: 'gemini-2.0-flash' },
       { version: 'v1', model: 'gemini-2.0-flash' },
       { version: 'v1beta', model: 'gemini-1.5-pro' },
@@ -34,9 +34,19 @@ serve(async (req) => {
     ];
 
     let geminiResponse = null;
-    let lastErrorMsg = '';
     let responseText = '';
+    
+    const parts: any[] = [{ text: prompt }];
+    if (audioBase64) {
+      parts.push({
+        inlineData: {
+          mimeType: audioMimeType || 'audio/webm',
+          data: audioBase64
+        }
+      });
+    }
 
+    let allErrors = [];
     for (const cand of candidates) {
       try {
         const url = `https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${apiKey}`;
@@ -48,11 +58,7 @@ serve(async (req) => {
           body: JSON.stringify({
             contents: [
               {
-                parts: [
-                  {
-                    text: prompt
-                  }
-                ]
+                parts: parts
               }
             ]
           })
@@ -65,20 +71,24 @@ serve(async (req) => {
             geminiResponse = resData;
             break;
           } else {
-            lastErrorMsg = 'Resposta vazia da API do Gemini.';
+            allErrors.push(`[${cand.model}] Resposta vazia.`);
           }
         } else {
-          const errJson = await res.json().catch(() => ({}));
-          lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
-          console.warn(`Tentativa falhou com ${cand.model} (${cand.version}): ${lastErrorMsg}`);
+          const errText = await res.text().catch(() => '');
+          let errJson: any = {};
+          try { errJson = JSON.parse(errText); } catch(e) {}
+          const msg = errJson.error?.message || errText || `Status ${res.status}`;
+          allErrors.push(`[${cand.model}] ${msg}`);
+          console.error(`Tentativa falhou com ${cand.model} (${cand.version}):`, errText);
         }
       } catch (err) {
-        lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
-        console.warn(`Erro de rede com ${cand.model} (${cand.version}): ${lastErrorMsg}`);
+        allErrors.push(`[${cand.model}] ${err.message}`);
+        console.error(`Erro de rede com ${cand.model} (${cand.version}):`, err.message);
       }
     }
 
     if (!geminiResponse) {
+      lastErrorMsg = allErrors.join(' | ');
       throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
     }
 
@@ -92,10 +102,10 @@ serve(async (req) => {
 
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ success: false, error: error.message, details: lastErrorMsg }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
+        status: 200 
       }
     );
   }
