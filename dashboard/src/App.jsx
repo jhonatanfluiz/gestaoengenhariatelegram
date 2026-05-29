@@ -5796,7 +5796,10 @@ Assistente IA:`;
                             const foundProj = projects.find(p => p.project_id === issue.obra_id);
                             if (foundProj) {
                               setActiveProject(foundProj);
-                              setActiveTab('issues');
+                              setProjectSubTab('issues');
+                              fetchProjectPhases(foundProj.project_id);
+                              fetchProjectAuditLogs(foundProj.project_id);
+                              fetchProjectIssues(foundProj.project_id);
                             }
                           }}
                           className="btn btn-secondary" 
