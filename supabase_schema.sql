@@ -11,6 +11,7 @@ DROP VIEW IF EXISTS public.vw_looker_studio_metrics CASCADE;
 DROP VIEW IF EXISTS public.vw_project_metrics CASCADE;
 DROP VIEW IF EXISTS public.vw_pending_ranking CASCADE;
 
+DROP TABLE IF EXISTS public.mensagens_obra CASCADE;
 DROP TABLE IF EXISTS public.bot_sessions CASCADE;
 DROP TABLE IF EXISTS public.change_logs CASCADE;
 DROP TABLE IF EXISTS public.weekly_answers_log CASCADE;
@@ -123,6 +124,19 @@ CREATE TABLE public.change_logs (
     new_data JSONB,
     changed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     changed_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Tabela de Ocorrências/Mensagens (Diário de Obra)
+CREATE TABLE public.mensagens_obra (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    obra_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+    fase_id UUID REFERENCES public.phases(id) ON DELETE SET NULL,
+    texto_tecnico TEXT NOT NULL,
+    imagem_url TEXT,
+    resposta_gestor TEXT,
+    status TEXT NOT NULL DEFAULT 'Pendente' CHECK (status IN ('Pendente', 'Resolvido')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Tabela de Controle de Sessões do Telegram Bot (State Machine)
@@ -369,6 +383,7 @@ ALTER TABLE public.project_phases_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.weekly_answers_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.change_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bot_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mensagens_obra ENABLE ROW LEVEL SECURITY;
 
 -- 1. Políticas Públicas de Visualização (Simplificadas para testes de MVP e Dashboard Web)
 CREATE POLICY "Leitura irrestrita para usuários autenticados" ON public.companies FOR SELECT USING (true);
@@ -392,6 +407,22 @@ CREATE POLICY "Modificação irrestrita de progresso" ON public.project_phases_p
 CREATE POLICY "Modificação de logs semanais" ON public.weekly_answers_log FOR ALL USING (true);
 CREATE POLICY "Modificação de logs de auditoria" ON public.change_logs FOR ALL USING (true);
 CREATE POLICY "Modificação de sessões do bot" ON public.bot_sessions FOR ALL USING (true);
+CREATE POLICY "Leitura irrestrita de mensagens_obra" ON public.mensagens_obra FOR SELECT USING (true);
+CREATE POLICY "Modificação irrestrita de mensagens_obra" ON public.mensagens_obra FOR ALL USING (true);
+
+-- =====================================================================
+-- 6.1 STORAGE BUCKETS
+-- =====================================================================
+-- Insert ocorrencias bucket
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('ocorrencias', 'ocorrencias', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies for public access (Simplified for MVP)
+CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'ocorrencias');
+CREATE POLICY "Public Insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'ocorrencias');
+CREATE POLICY "Public Update" ON storage.objects FOR UPDATE USING (bucket_id = 'ocorrencias');
+CREATE POLICY "Public Delete" ON storage.objects FOR DELETE USING (bucket_id = 'ocorrencias');
 
 -- =====================================================================
 -- 7. MODELOS DE PAYLOAD JSON E FORMATOS DE INTEGRAÇÃO (DOCUMENTAÇÃO SQL)
