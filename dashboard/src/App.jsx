@@ -238,8 +238,7 @@ export default function App() {
   // AI analysis state
   const [aiAnalysis, setAiAnalysis] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [tempGeminiKey, setTempGeminiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  const [showKeyConfig, setShowKeyConfig] = useState(false);
+
 
   // Project-specific AI Forecast
   const [projectForecast, setProjectForecast] = useState(() => {
@@ -1517,14 +1516,6 @@ export default function App() {
   };
 
   const handleGenerateAIReport = async () => {
-    const envKey = import.meta.env.VITE_GEMINI_API_KEY;
-    const localKey = localStorage.getItem('gemini_api_key');
-    const key = tempGeminiKey || localKey || envKey;
-    if (!key) {
-      showToast('Por favor, configure sua chave da API do Gemini.', 'danger');
-      return;
-    }
-
     setAiLoading(true);
     setAiAnalysis('');
 
@@ -1576,67 +1567,14 @@ Por favor, faça um relatório de auditoria operacional:
 
 Gere o relatório formatado em Markdown rico e profissional (use emojis, seções claras e bullet points).`;
 
-      const candidates = [
-        { version: 'v1', model: 'gemini-1.5-flash' },
-        { version: 'v1beta', model: 'gemini-1.5-flash' },
-        { version: 'v1', model: 'gemini-1.5-pro' },
-        { version: 'v1beta', model: 'gemini-1.5-pro' },
-        { version: 'v1', model: 'gemini-2.0-flash' },
-        { version: 'v1beta', model: 'gemini-2.0-flash' },
-        { version: 'v1', model: 'gemini-2.5-flash' },
-        { version: 'v1beta', model: 'gemini-2.5-flash' }
-      ];
+      const { data, error } = await supabase.functions.invoke('ai-analysis', {
+        body: { prompt }
+      });
 
-      let response = null;
-      let lastErrorMsg = '';
+      if (error) throw error;
+      if (!data || !data.text) throw new Error('Sem resposta da IA.');
 
-      for (const cand of candidates) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: prompt
-                    }
-                  ]
-                }
-              ]
-            })
-          });
-
-          if (res.ok) {
-            response = res;
-            break;
-          } else {
-            const errJson = await res.json().catch(() => ({}));
-            lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
-            console.warn(`Tentativa falhou com ${cand.model} (${cand.version}): ${lastErrorMsg}`);
-          }
-        } catch (err) {
-          lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
-          console.warn(`Erro de rede com ${cand.model} (${cand.version}): ${lastErrorMsg}`);
-        }
-      }
-
-      if (!response) {
-        throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
-      }
-
-      const resData = await response.json();
-      const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Não foi possível extrair a resposta do modelo.';
-      setAiAnalysis(text);
-      
-      // Save key if it worked
-      if (tempGeminiKey && tempGeminiKey.trim()) {
-        localStorage.setItem('gemini_api_key', tempGeminiKey);
-        setShowKeyConfig(false);
-      }
+      setAiAnalysis(data.text);
     } catch (e) {
       console.error(e);
       showToast('Erro na análise da IA: ' + e.message, 'danger');
@@ -1647,12 +1585,6 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
 
   const handleGenerateProjectForecast = async () => {
     if (!activeProject) return;
-
-    const key = tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY;
-    if (!key) {
-      showToast('Por favor, configure sua Gemini API Key na aba de relatórios de eficiência ou no próprio painel para habilitar a previsão.', 'warning');
-      return;
-    }
 
     setForecastLoading(true);
 
@@ -1685,67 +1617,18 @@ Escreva uma previsão técnica muito objetiva de término para o gestor.
 
 Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa com negritos nos prazos e datas. Não use introduções formais.`;
 
-      const candidates = [
-        { version: 'v1', model: 'gemini-1.5-flash' },
-        { version: 'v1beta', model: 'gemini-1.5-flash' },
-        { version: 'v1', model: 'gemini-1.5-pro' },
-        { version: 'v1beta', model: 'gemini-1.5-pro' },
-        { version: 'v1', model: 'gemini-2.0-flash' },
-        { version: 'v1beta', model: 'gemini-2.0-flash' },
-        { version: 'v1', model: 'gemini-2.5-flash' },
-        { version: 'v1beta', model: 'gemini-2.5-flash' }
-      ];
+      const { data, error } = await supabase.functions.invoke('ai-analysis', {
+        body: { prompt }
+      });
 
-      let response = null;
-      let lastErrorMsg = '';
-
-      for (const cand of candidates) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: prompt
-                    }
-                  ]
-                }
-              ]
-            })
-          });
-
-          if (res.ok) {
-            response = res;
-            break;
-          } else {
-            const errJson = await res.json().catch(() => ({}));
-            lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
-          }
-        } catch (err) {
-          lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
-        }
-      }
-
-      if (!response) {
-        throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
-      }
-
-      const resData = await response.json();
-      const text = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Previsão indisponível.';
+      if (error) throw error;
+      if (!data || !data.text) throw new Error('Sem resposta da IA.');
+      
+      const text = data.text;
       
       // Update local storage and state
       updateProjectForecast(activeProject.project_id, text);
       showToast('Previsão IA atualizada com sucesso!', 'success');
-      
-      // Save key if it worked
-      if (tempGeminiKey && tempGeminiKey.trim()) {
-        localStorage.setItem('gemini_api_key', tempGeminiKey);
-      }
     } catch (e) {
       console.error(e);
       showToast('Erro ao estimar com IA: ' + e.message, 'danger');
@@ -1757,12 +1640,6 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
   const handleSendChatMessage = async (textToSend) => {
     const messageText = textToSend || chatInput;
     if (!messageText || !messageText.trim()) return;
-
-    const key = tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY;
-    if (!key) {
-      showToast('Por favor, configure sua Gemini API Key para iniciar a conversa.', 'warning');
-      return;
-    }
 
     // Add user message to state
     const newUserMessage = {
@@ -1846,58 +1723,14 @@ ${chatMessages.map(msg => `${msg.role === 'user' ? 'Gestor' : 'Assistente IA'}: 
 Gestor: ${messageText}
 Assistente IA:`;
 
-      const candidates = [
-        { version: 'v1', model: 'gemini-1.5-flash' },
-        { version: 'v1beta', model: 'gemini-1.5-flash' },
-        { version: 'v1', model: 'gemini-1.5-pro' },
-        { version: 'v1beta', model: 'gemini-1.5-pro' },
-        { version: 'v1', model: 'gemini-2.0-flash' },
-        { version: 'v1beta', model: 'gemini-2.0-flash' },
-        { version: 'v1', model: 'gemini-2.5-flash' },
-        { version: 'v1beta', model: 'gemini-2.5-flash' }
-      ];
+      const { data, error } = await supabase.functions.invoke('ai-analysis', {
+        body: { prompt: systemPrompt }
+      });
 
-      let response = null;
-      let lastErrorMsg = '';
+      if (error) throw error;
+      if (!data || !data.text) throw new Error('Sem resposta da IA.');
 
-      for (const cand of candidates) {
-        try {
-          const res = await fetch(`https://generativelanguage.googleapis.com/${cand.version}/models/${cand.model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              contents: [
-                {
-                  parts: [
-                    {
-                      text: systemPrompt
-                    }
-                  ]
-                }
-              ]
-            })
-          });
-
-          if (res.ok) {
-            response = res;
-            break;
-          } else {
-            const errJson = await res.json().catch(() => ({}));
-            lastErrorMsg = errJson.error?.message || `Status ${res.status} para o modelo ${cand.model} (${cand.version})`;
-          }
-        } catch (err) {
-          lastErrorMsg = err.message || `Falha de rede para o modelo ${cand.model} (${cand.version})`;
-        }
-      }
-
-      if (!response) {
-        throw new Error(lastErrorMsg || 'Erro de comunicação com a API do Gemini.');
-      }
-
-      const resData = await response.json();
-      const assistantText = resData.candidates?.[0]?.content?.parts?.[0]?.text || 'Desculpe, não consegui formular uma resposta no momento.';
+      const assistantText = data.text;
       
       const newAssistantMessage = {
         role: 'assistant',
@@ -1908,11 +1741,6 @@ Assistente IA:`;
       const finalMessages = [...updatedMessages, newAssistantMessage];
       setChatMessages(finalMessages);
       localStorage.setItem('elevatesync_chat_history', JSON.stringify(finalMessages));
-      
-      // Save key if it worked
-      if (tempGeminiKey && tempGeminiKey.trim()) {
-        localStorage.setItem('gemini_api_key', tempGeminiKey);
-      }
     } catch (e) {
       console.error(e);
       showToast('Erro ao processar mensagem do chat: ' + e.message, 'danger');
@@ -2246,45 +2074,17 @@ Assistente IA:`;
               <div style={{ marginTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.05)', paddingTop: '10px' }}>
                 <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '4px' }}>Previsão Refinada (IA Gemini)</span>
                 
-                {!(tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) ? (
-                  <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)', padding: '10px', borderRadius: '6px', marginTop: '6px' }} className="no-print">
-                    <p style={{ fontSize: '0.75rem', color: '#fca5a5', margin: '0 0 6px' }}>Configure a API Key do Gemini para ativar a estimativa com IA:</p>
-                    <input 
-                      type="password"
-                      className="form-control"
-                      style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', marginBottom: '6px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
-                      placeholder="Cole sua Gemini API Key aqui"
-                      value={tempGeminiKey}
-                      onChange={e => setTempGeminiKey(e.target.value)}
-                    />
-                    <button 
-                      onClick={() => {
-                        if (tempGeminiKey.trim()) {
-                          localStorage.setItem('gemini_api_key', tempGeminiKey);
-                          showToast('Chave Gemini salva localmente!', 'success');
-                        }
-                      }}
-                      className="btn btn-secondary"
-                      style={{ padding: '4px 8px', fontSize: '0.7rem', width: '100%', border: '1px solid rgba(255,255,255,0.1)' }}
-                    >
-                      Salvar Chave
-                    </button>
+                {projectForecast[activeProject.project_id] ? (
+                  <div style={{ fontSize: '0.8rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '110px', overflowY: 'auto' }}>
+                    {renderMarkdown(projectForecast[activeProject.project_id])}
                   </div>
                 ) : (
-                  <>
-                    {projectForecast[activeProject.project_id] ? (
-                      <div style={{ fontSize: '0.8rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.02)', padding: '10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', maxHeight: '110px', overflowY: 'auto' }}>
-                        {renderMarkdown(projectForecast[activeProject.project_id])}
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0' }}>Nenhuma estimativa de IA gerada ainda.</p>
-                    )}
-                  </>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0' }}>Nenhuma estimativa de IA gerada ainda.</p>
                 )}
               </div>
             </div>
 
-            {progress > 0 && progress < 100 && (tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) && (
+            {progress > 0 && progress < 100 && (
               <div className="no-print" style={{ marginTop: '12px' }}>
                 <button
                   onClick={handleGenerateProjectForecast}
@@ -2468,83 +2268,17 @@ Assistente IA:`;
                       </h4>
                       
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        {(localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) && (
-                          <button 
-                            onClick={handleGenerateAIReport}
-                            disabled={aiLoading}
-                            className="btn btn-primary"
-                            style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                          >
-                            <RefreshCw size={12} className={aiLoading ? 'animate-spin' : ''} />
-                            {aiAnalysis ? 'Atualizar Análise' : 'Gerar Análise'}
-                          </button>
-                        )}
-                        {!import.meta.env.VITE_GEMINI_API_KEY && (
-                          <button 
-                            onClick={() => setShowKeyConfig(!showKeyConfig)}
-                            className="btn btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                          >
-                            {showKeyConfig ? 'Ocultar Config' : 'Chave API'}
-                          </button>
-                        )}
+                        <button 
+                          onClick={handleGenerateAIReport}
+                          disabled={aiLoading}
+                          className="btn btn-primary"
+                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <RefreshCw size={12} className={aiLoading ? 'animate-spin' : ''} />
+                          {aiAnalysis ? 'Atualizar Análise' : 'Gerar Análise'}
+                        </button>
                       </div>
                     </div>
-
-                    {/* Gemini Key Config Form */}
-                    {!import.meta.env.VITE_GEMINI_API_KEY && (!localStorage.getItem('gemini_api_key') || showKeyConfig) && (
-                      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)', padding: '16px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
-                          Para ativar a análise de IA, insira sua chave gratuita do Gemini (gerada no Google AI Studio). A chave será salva localmente e com segurança em seu navegador.
-                        </p>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <input 
-                            type="password"
-                            placeholder={localStorage.getItem('gemini_api_key') ? '••••••••••••••••' : 'Cole sua Gemini API Key aqui'}
-                            value={tempGeminiKey}
-                            onChange={e => setTempGeminiKey(e.target.value)}
-                            style={{ flex: 1, padding: '6px 10px', fontSize: '0.8rem', background: 'rgba(15,23,42,0.8)', border: '1px solid var(--border-color)', color: '#ffffff', borderRadius: '4px' }}
-                          />
-                          <button 
-                            onClick={() => {
-                              if (tempGeminiKey.trim()) {
-                                localStorage.setItem('gemini_api_key', tempGeminiKey);
-                                showToast('Chave salva com sucesso!');
-                                setShowKeyConfig(false);
-                              } else {
-                                showToast('Por favor, digite uma chave válida.', 'danger');
-                              }
-                            }}
-                            className="btn btn-primary"
-                            style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                          >
-                            Salvar Chave
-                          </button>
-                          {localStorage.getItem('gemini_api_key') && (
-                            <button 
-                              onClick={() => {
-                                localStorage.removeItem('gemini_api_key');
-                                setTempGeminiKey('');
-                                showToast('Chave removida.');
-                                setShowKeyConfig(true);
-                              }}
-                              className="btn btn-danger"
-                              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
-                            >
-                              Limpar
-                            </button>
-                          )}
-                        </div>
-                        <a 
-                          href="https://aistudio.google.com/" 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          style={{ fontSize: '0.75rem', color: '#06b6d4', textDecoration: 'underline' }}
-                        >
-                          Obter chave gratuita no Google AI Studio ↗
-                        </a>
-                      </div>
-                    )}
 
                     {/* AI analysis result */}
                     {aiLoading && (
@@ -5062,47 +4796,7 @@ Assistente IA:`;
                 </p>
               </div>
 
-              {!(tempGeminiKey || localStorage.getItem('gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY) ? (
-                <div style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.1)', padding: '24px', borderRadius: '12px', textAlign: 'center', margin: '40px auto', maxWidth: '500px' }}>
-                  <AlertTriangle size={40} style={{ color: '#f87171', margin: '0 auto 12px' }} />
-                  <h4 style={{ color: '#ffffff', fontWeight: 600, marginBottom: '8px' }}>Chave da API do Gemini Necessária</h4>
-                  <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '20px', lineHeight: 1.5 }}>
-                    Para interagir com o Assistente IA, configure sua Gemini API Key gratuita (gerada no Google AI Studio). A chave é armazenada de forma segura e local no seu navegador.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'stretch' }}>
-                    <input 
-                      type="password"
-                      className="form-control"
-                      style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', textAlign: 'center' }}
-                      placeholder="Cole sua Gemini API Key aqui"
-                      value={tempGeminiKey}
-                      onChange={e => setTempGeminiKey(e.target.value)}
-                    />
-                    <button 
-                      onClick={() => {
-                        if (tempGeminiKey.trim()) {
-                          localStorage.setItem('gemini_api_key', tempGeminiKey);
-                          showToast('Chave Gemini salva com sucesso! O assistente está pronto.', 'success');
-                        } else {
-                          showToast('Por favor, digite ou cole uma chave válida.', 'warning');
-                        }
-                      }}
-                      className="btn btn-primary"
-                      style={{ padding: '8px 16px' }}
-                    >
-                      Ativar Assistente IA
-                    </button>
-                    <a 
-                      href="https://aistudio.google.com/" 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      style={{ fontSize: '0.75rem', color: '#06b6d4', textDecoration: 'underline', marginTop: '4px' }}
-                    >
-                      Obtenha uma chave gratuita no Google AI Studio
-                    </a>
-                  </div>
-                </div>
-              ) : (() => {
+              {(() => {
                 // Determine suggestions chips dynamically
                 const chips = [
                   { text: 'Quais obras estão atrasadas neste momento e quem são os responsáveis?', label: '🔴 Obras Atrasadas' },
