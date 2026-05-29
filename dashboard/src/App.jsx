@@ -3258,9 +3258,9 @@ Assistente IA:`;
                 <span style={{ color: '#94a3b8' }}>Avanço Esperado: <strong style={{ color: '#f59e0b' }}>{expectedProgress}%</strong></span>
                 <span style={{ color: '#94a3b8' }}>Avanço Realizado: <strong style={{ color: '#06b6d4' }}>{progressPercent}%</strong></span>
               </div>
-              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', position: 'relative' }}>
-                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRadius: '8px' }}></div>
-                <div style={{ width: '3px', background: '#f59e0b', height: '24px', position: 'absolute', left: `calc(${expectedProgress}% - 1px)`, top: '-4px', zIndex: 10, boxShadow: '0 0 8px #f59e0b', borderRadius: '2px' }} title={`Esperado: ${expectedProgress}%`}></div>
+              <div style={{ width: '100%', background: 'rgba(255,255,255,0.05)', height: '16px', borderRadius: '8px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ width: `${expectedProgress}%`, background: 'linear-gradient(90deg, #d97706, #f59e0b)', height: '100%', position: 'absolute', left: 0, top: 0, borderRadius: '8px' }} title={`Esperado: ${expectedProgress}%`}></div>
+                <div style={{ width: `${progressPercent}%`, background: 'linear-gradient(90deg, #0891b2, #06b6d4)', height: '100%', position: 'absolute', left: 0, top: 0, borderRadius: '8px', boxShadow: '2px 0 8px rgba(0,0,0,0.3)' }} title={`Realizado: ${progressPercent}%`}></div>
               </div>
             </div>
 
@@ -3335,7 +3335,6 @@ Assistente IA:`;
                     <input 
                       type="file" 
                       accept="image/*" 
-                      capture="environment" 
                       onChange={e => setIssueFile(e.target.files[0])}
                       style={{ width: '100%', padding: '8px', marginTop: '4px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.2)' }}
                     />
@@ -3931,7 +3930,6 @@ Assistente IA:`;
                     <input 
                       type="file" 
                       accept="image/*" 
-                      capture="environment" 
                       onChange={e => setIssueFile(e.target.files[0])}
                       style={{ width: '100%', padding: '8px', marginTop: '4px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', border: '1px dashed rgba(255,255,255,0.2)' }}
                     />
