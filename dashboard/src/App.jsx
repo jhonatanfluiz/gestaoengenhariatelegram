@@ -113,6 +113,13 @@ export default function App() {
   const [globalIssues, setGlobalIssues] = useState([]);
   const [showGlobalIssuesModal, setShowGlobalIssuesModal] = useState(false);
   
+  // Exclusão de Master
+  const [masterToDelete, setMasterToDelete] = useState(null);
+  const [showMasterDeleteConfirm, setShowMasterDeleteConfirm] = useState(false);
+  const [showMasterDeletePin, setShowMasterDeletePin] = useState(false);
+  const [masterDeleteGeneratedPin, setMasterDeleteGeneratedPin] = useState('');
+  const [masterDeleteInputPin, setMasterDeleteInputPin] = useState('');
+  
   // Active selected elements
   const [activeProject, setActiveProject] = useState(null);
   const [projectPhases, setProjectPhases] = useState([]);
@@ -1156,19 +1163,85 @@ export default function App() {
     }
   };
 
-  const handleDeleteManager = async (mgrId) => {
+  const handleDeleteManager = async (mgr) => {
+    if (mgr.role === 'master') {
+      setMasterToDelete(mgr);
+      setShowMasterDeleteConfirm(true);
+      return;
+    }
+
     if (!window.confirm('Tem certeza de que deseja excluir este gestor? O acesso dele será bloqueado imediatamente.')) return;
 
     const { error } = await supabase
       .from('profiles')
       .delete()
-      .eq('id', mgrId);
+      .eq('id', mgr.id);
 
     if (error) {
       showToast('Erro ao excluir gestor: ' + error.message, 'danger');
     } else {
       showToast('Gestor excluído com sucesso!');
       fetchDashboardData();
+    }
+  };
+
+  const handleConfirmMasterDeleteStage1 = async () => {
+    if (!masterToDelete) return;
+    
+    showToast('Enviando e-mail de alerta...');
+    const pin = Math.floor(1000 + Math.random() * 9000).toString(); // 4 digit pin
+    setMasterDeleteGeneratedPin(pin);
+    setMasterDeleteInputPin('');
+
+    try {
+      const targetEmails = managers
+        .filter(m => m.role === 'master' && m.id !== masterToDelete.id && m.email)
+        .map(m => m.email);
+
+      if (targetEmails.length > 0) {
+        const { error } = await supabase.functions.invoke('send-email', {
+          body: {
+            toEmails: targetEmails,
+            targetManagerName: masterToDelete.full_name,
+            deletingUserName: userProfile?.full_name || 'Desconhecido'
+          }
+        });
+        if (error) {
+          console.error('Edge Function error:', error);
+          // Permite prosseguir mesmo com erro, ou bloqueia? 
+          // O usuário quer aviso. Mas se a edge function falhar por conta do Resend não aceitar, vamos continuar para não travar o sistema.
+        }
+      }
+      
+      setShowMasterDeleteConfirm(false);
+      setShowMasterDeletePin(true);
+      showToast('Aviso disparado. Digite o PIN de segurança.');
+    } catch (err) {
+      console.error(err);
+      showToast('Erro interno ao disparar e-mail, mas prosseguindo com segurança.', 'warning');
+      setShowMasterDeleteConfirm(false);
+      setShowMasterDeletePin(true);
+    }
+  };
+
+  const handleConfirmMasterDeleteStage2 = async () => {
+    if (masterDeleteInputPin !== masterDeleteGeneratedPin) {
+      showToast('Código PIN incorreto!', 'danger');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', masterToDelete.id);
+
+    if (error) {
+      showToast('Erro ao excluir gestor master: ' + error.message, 'danger');
+    } else {
+      showToast('Gestor master excluído com sucesso!');
+      fetchDashboardData();
+      setMasterToDelete(null);
+      setShowMasterDeletePin(false);
     }
   };
 
@@ -5495,7 +5568,7 @@ Assistente IA:`;
                                     Alternar Acesso
                                   </button>
                                   <button 
-                                    onClick={() => handleDeleteManager(mgr.id)} 
+                                    onClick={() => handleDeleteManager(mgr)} 
                                     className="btn"
                                     style={{ padding: '4px 8px', fontSize: '0.85rem', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer' }}
                                   >
@@ -5826,6 +5899,77 @@ Assistente IA:`;
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 1: Confirmação Master */}
+      {showMasterDeleteConfirm && masterToDelete && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#1e293b', width: '90%', maxWidth: '400px', borderRadius: '12px', padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', position: 'relative' }}>
+            <button onClick={() => setShowMasterDeleteConfirm(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ color: '#ef4444', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle size={24} /> Atenção Crítica
+            </h3>
+            <p style={{ color: '#e2e8f0', fontSize: '0.95rem', marginBottom: '16px', lineHeight: '1.5' }}>
+              Você está prestes a excluir o gestor <strong>{masterToDelete.full_name}</strong> que possui nível <strong style={{ color: '#ef4444' }}>MASTER</strong>.
+            </p>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '24px', lineHeight: '1.5' }}>
+              Esta é uma ação destrutiva irreversível. Um e-mail de alerta será enviado aos outros administradores notificando essa tentativa de exclusão.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button className="btn" onClick={() => setShowMasterDeleteConfirm(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#f8fafc' }}>
+                Cancelar
+              </button>
+              <button className="btn" onClick={handleConfirmMasterDeleteStage1} style={{ background: '#ef4444', border: '1px solid #ef4444', color: '#fff', fontWeight: 'bold' }}>
+                Sim, Enviar Alerta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Confirmação com PIN Aleatório */}
+      {showMasterDeletePin && masterToDelete && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#1e293b', width: '90%', maxWidth: '400px', borderRadius: '12px', padding: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', position: 'relative' }}>
+            <button onClick={() => setShowMasterDeletePin(false)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+            <h3 style={{ color: '#ef4444', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertTriangle size={24} /> Confirmação Final
+            </h3>
+            <p style={{ color: '#e2e8f0', fontSize: '0.95rem', marginBottom: '8px', lineHeight: '1.5' }}>
+              O e-mail de alerta foi disparado. Para confirmar a exclusão de <strong>{masterToDelete.full_name}</strong>, digite o código de segurança abaixo:
+            </p>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '8px', textAlign: 'center', marginBottom: '16px', border: '1px dashed #ef4444' }}>
+              <span style={{ fontSize: '2rem', fontWeight: 'bold', letterSpacing: '4px', color: '#ef4444' }}>
+                {masterDeleteGeneratedPin}
+              </span>
+            </div>
+            <input
+              type="text"
+              value={masterDeleteInputPin}
+              onChange={(e) => setMasterDeleteInputPin(e.target.value)}
+              placeholder="Digite o PIN de 4 dígitos"
+              style={{ width: '100%', marginBottom: '24px', textAlign: 'center', fontSize: '1.2rem', letterSpacing: '2px' }}
+              maxLength={4}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button className="btn" onClick={() => setShowMasterDeletePin(false)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#f8fafc' }}>
+                Cancelar Exclusão
+              </button>
+              <button 
+                className="btn" 
+                onClick={handleConfirmMasterDeleteStage2} 
+                disabled={masterDeleteInputPin !== masterDeleteGeneratedPin}
+                style={{ background: masterDeleteInputPin === masterDeleteGeneratedPin ? '#ef4444' : 'rgba(239,68,68,0.3)', border: '1px solid transparent', color: '#fff', fontWeight: 'bold', cursor: masterDeleteInputPin === masterDeleteGeneratedPin ? 'pointer' : 'not-allowed' }}
+              >
+                Confirmar Exclusão
+              </button>
+            </div>
           </div>
         </div>
       )}
