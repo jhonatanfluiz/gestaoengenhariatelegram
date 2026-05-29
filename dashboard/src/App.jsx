@@ -5785,7 +5785,7 @@ Assistente IA:`;
                     <div key={issue.id} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(239, 68, 68, 0.2)', borderLeft: '4px solid #ef4444', borderRadius: '8px', padding: '16px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                         <div>
-                          <h4 style={{ margin: '0 0 4px', color: '#f8fafc', fontSize: '1rem' }}>Obra: {proj.name || 'Desconhecida'}</h4>
+                          <h4 style={{ margin: '0 0 4px', color: '#f8fafc', fontSize: '1rem' }}>Obra: {proj.project_name || 'Desconhecida'}</h4>
                           <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px' }}>
                             {format(new Date(issue.created_at), "dd/MM/yyyy 'às' HH:mm")}
                           </span>
