@@ -25,7 +25,9 @@ export default function App() {
   const [emailErrorText, setEmailErrorText] = useState('');
 
   // View Only state
-  const [viewOnlyProjectId] = useState(() => new URLSearchParams(window.location.search).get('view_report'));
+  const urlParams = new URLSearchParams(window.location.search);
+  const isTechView = !!urlParams.get('tech_view');
+  const [viewOnlyProjectId] = useState(() => urlParams.get('view_report') || urlParams.get('tech_view'));
   const [clientIsAuthenticated, setClientIsAuthenticated] = useState(false);
   const [clientPasswordInput, setClientPasswordInput] = useState('');
   const [viewOnlyProject, setViewOnlyProject] = useState(null);
@@ -3014,7 +3016,7 @@ Assistente IA:`;
       );
     }
 
-    if (viewOnlyProject.senha_cliente && !clientIsAuthenticated) {
+    if (viewOnlyProject.senha_cliente && !clientIsAuthenticated && !isTechView) {
       return (
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', padding: '16px', minHeight: '100vh', background: '#020617' }}>
           <div className="glass-panel animate-fade-in" style={{ padding: '40px', width: '100%', maxWidth: '400px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -3103,6 +3105,31 @@ Assistente IA:`;
               {showMobileSchedule ? 'Ocultar Cronograma' : 'Gerar Cronograma Inteligente'}
             </button>
 
+            {isTechView && (
+              <div style={{ marginTop: '12px' }}>
+                <button
+                  onClick={() => { setIssuePhaseId(null); setShowIssueModal(true); }}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+                  }}
+                >
+                  <AlertTriangle size={20} />
+                  Relatar Ocorrência de Obra
+                </button>
+              </div>
+            )}
 
             {showMobileSchedule && (
               <div style={{ marginTop: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -3151,7 +3178,15 @@ Assistente IA:`;
                               </div>
                             )}
                           </div>
-
+                          {isTechView && (
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setIssuePhaseId(phase.phases?.id); setShowIssueModal(true); }}
+                              style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', marginLeft: '8px' }}
+                              title="Relatar Ocorrência"
+                            >
+                              <AlertTriangle size={12} /> Relatar
+                            </button>
+                          )}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px', fontSize: '0.75rem' }}>
                           <span style={{ color: statusColor }}>Até: {phaseDate.toLocaleDateString('pt-BR')}</span>

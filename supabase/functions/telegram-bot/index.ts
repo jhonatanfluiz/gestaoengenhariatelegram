@@ -397,7 +397,7 @@ async function askPhaseQuestion(
       log('Error generating AI message:', e);
     }
 
-    const reportUrl = `${Deno.env.get('FRONTEND_URL') || 'https://seu-dominio.com'}/?view_report=${projectId}`;
+    const reportUrl = `${Deno.env.get('FRONTEND_URL') || 'https://seu-dominio.com'}/?tech_view=${projectId}`;
     
     await sendTelegram('sendMessage', {
       chat_id: chatId,
