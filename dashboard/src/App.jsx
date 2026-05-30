@@ -285,7 +285,7 @@ export default function App() {
   // AI Chat Assistant States
   const [chatMessages, setChatMessages] = useState(() => {
     try {
-      const saved = localStorage.getItem('elevatesync_chat_history');
+      const saved = localStorage.getItem('HoistFlow_chat_history');
       if (saved) {
         return JSON.parse(saved);
       }
@@ -295,7 +295,7 @@ export default function App() {
     return [
       { 
         role: 'assistant', 
-        content: 'Olá! Sou o Assistente IA do ElevateSync. Tenho acesso completo a todas as obras, técnicos, equipes e logs de auditoria em tempo real.\n\nPosso te ajudar com análises de prazos, resumos para colar no WhatsApp, dúvidas técnicas sobre montagem ou relatórios operacionais. Como posso ajudar hoje?', 
+        content: 'Olá! Sou o Assistente IA do HoistFlow. Tenho acesso completo a todas as obras, técnicos, equipes e logs de auditoria em tempo real.\n\nPosso te ajudar com análises de prazos, resumos para colar no WhatsApp, dúvidas técnicas sobre montagem ou relatórios operacionais. Como posso ajudar hoje?', 
         timestamp: new Date().toISOString() 
       }
     ];
@@ -1418,7 +1418,7 @@ export default function App() {
         body: {
           action: 'send_test',
           chat_id: tech.telegram_chat_id,
-          text: `⚡ *Teste de Conexão ElevateSync*\n\nOlá *${tech.full_name}*!\n\nEste é um teste de integração de mensagens do painel administrativo. O seu bot do Telegram está configurado corretamente com o Chat ID \`${tech.telegram_chat_id}\`!`
+          text: `⚡ *Teste de Conexão HoistFlow*\n\nOlá *${tech.full_name}*!\n\nEste é um teste de integração de mensagens do painel administrativo. O seu bot do Telegram está configurado corretamente com o Chat ID \`${tech.telegram_chat_id}\`!`
         }
       });
 
@@ -1817,7 +1817,7 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
     
     const updatedMessages = [...chatMessages, newUserMessage];
     setChatMessages(updatedMessages);
-    localStorage.setItem('elevatesync_chat_history', JSON.stringify(updatedMessages));
+    localStorage.setItem('HoistFlow_chat_history', JSON.stringify(updatedMessages));
     setChatInput('');
     setChatLoading(true);
 
@@ -1855,7 +1855,7 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
         spreadsheetContext = `\n**DADOS EXTRATADOS DA PLANILHA EXTERNA (NOVAS OBRAS FUTURAS A INICIAR):**\n${JSON.stringify(uploadedData, null, 2)}\n`;
       }
 
-      const systemPrompt = `Você é o Co-piloto de Gestão Inteligente e Assistente IA do ElevateSync.
+      const systemPrompt = `Você é o Co-piloto de Gestão Inteligente e Assistente IA do HoistFlow.
 Você é um engenheiro eletrônico sênior e supervisor de instalação especialista em gestão de obras de elevadores comerciais.
 Sua missão é responder perguntas do gestor sobre o andamento das obras, eficiência de equipes e prover suporte técnico.
 
@@ -1910,7 +1910,7 @@ Assistente IA:`;
       
       const finalMessages = [...updatedMessages, newAssistantMessage];
       setChatMessages(finalMessages);
-      localStorage.setItem('elevatesync_chat_history', JSON.stringify(finalMessages));
+      localStorage.setItem('HoistFlow_chat_history', JSON.stringify(finalMessages));
     } catch (e) {
       console.error(e);
       showToast('Erro ao processar mensagem do chat: ' + e.message, 'danger');
@@ -1924,12 +1924,12 @@ Assistente IA:`;
       const defaultMsg = [
         { 
           role: 'assistant', 
-          content: 'Olá! Sou o Assistente IA do ElevateSync. Tenho acesso completo a todas as obras, técnicos, equipes e logs de auditoria em tempo real.\n\nPosso te ajudar com análises de prazos, resumos para colar no WhatsApp, dúvidas técnicas sobre montagem ou relatórios operacionais. Como posso ajudar hoje?', 
+          content: 'Olá! Sou o Assistente IA do HoistFlow. Tenho acesso completo a todas as obras, técnicos, equipes e logs de auditoria em tempo real.\n\nPosso te ajudar com análises de prazos, resumos para colar no WhatsApp, dúvidas técnicas sobre montagem ou relatórios operacionais. Como posso ajudar hoje?', 
           timestamp: new Date().toISOString() 
         }
       ];
       setChatMessages(defaultMsg);
-      localStorage.setItem('elevatesync_chat_history', JSON.stringify(defaultMsg));
+      localStorage.setItem('HoistFlow_chat_history', JSON.stringify(defaultMsg));
       showToast('Histórico de chat limpo!', 'success');
     }
   };
@@ -1999,7 +1999,7 @@ Assistente IA:`;
       
       const newMessages = [...chatMessages, sysMessage];
       setChatMessages(newMessages);
-      localStorage.setItem('elevatesync_chat_history', JSON.stringify(newMessages));
+      localStorage.setItem('HoistFlow_chat_history', JSON.stringify(newMessages));
 
     } catch (err) {
       console.error(err);
@@ -2159,7 +2159,7 @@ Assistente IA:`;
       <div className="glass-panel animate-fade-in" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Report Header for printing */}
         <div className="print-only" style={{ borderBottom: '2px solid #000000', paddingBottom: '16px', marginBottom: '20px' }}>
-          <h1 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#000000', margin: 0 }}>ElevateSync - Relatório Técnico de Obra</h1>
+          <h1 style={{ fontSize: '2.2rem', fontWeight: 800, color: '#000000', margin: 0 }}>HoistFlow - Relatório Técnico de Obra</h1>
           <p style={{ margin: '6px 0 0', color: '#555555', fontSize: '0.95rem' }}>Gerado em {new Date().toLocaleString()}</p>
         </div>
 
@@ -2903,7 +2903,7 @@ Assistente IA:`;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', alignItems: 'center', justifyContent: 'center', backgroundColor: '#090d16' }}>
         <RefreshCw style={{ animation: 'spin 2s linear infinite', color: '#06b6d4' }} size={48} />
-        <p style={{ marginTop: '16px', color: '#94a3b8' }}>Carregando painel ElevateSync...</p>
+        <p style={{ marginTop: '16px', color: '#94a3b8' }}>Carregando painel HoistFlow...</p>
       </div>
     );
   }
@@ -3198,7 +3198,7 @@ Assistente IA:`;
 
           <div style={{ textAlign: 'center', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '16px' }}>
             <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-              <Lock size={12} /> Acesso Restrito • ElevateSync
+              <Lock size={12} /> Acesso Restrito • HoistFlow
             </span>
           </div>
 
@@ -3274,7 +3274,7 @@ Assistente IA:`;
             <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(6, 182, 212, 0.1)', borderRadius: '50%', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
               <Activity style={{ color: '#06b6d4' }} size={32} />
             </div>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>ElevateSync</h1>
+            <h1 style={{ fontSize: '1.8rem', fontWeight: 700, marginBottom: '8px' }}>HoistFlow</h1>
             <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Acompanhamento de Obras de Elevadores</p>
           </div>
 
@@ -3460,7 +3460,7 @@ Assistente IA:`;
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Activity style={{ color: '#06b6d4' }} size={28} />
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>ElevateSync</h2>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>HoistFlow</h2>
             <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Monitoramento de Instalações de Elevadores Comerciais</p>
           </div>
         </div>
@@ -3901,7 +3901,7 @@ Assistente IA:`;
                     return;
                   }
 
-                  let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n  <Document>\n    <name>Mapa de Obras - ElevateSync</name>\n`;
+                  let kmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n  <Document>\n    <name>Mapa de Obras - HoistFlow</name>\n`;
 
                   projectsWithAddress.forEach(proj => {
                     kmlContent += `    <Placemark>\n      <name>${proj.project_name || 'Obra'}</name>\n      <description>Modelo: ${proj.elevator_model || '-'} | Empresa: ${proj.company_name || '-'}</description>\n      <address>${proj.endereco}</address>\n    </Placemark>\n`;
@@ -3914,7 +3914,7 @@ Assistente IA:`;
                   
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = 'obras_elevatesync.kml';
+                  a.download = 'obras_HoistFlow.kml';
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);

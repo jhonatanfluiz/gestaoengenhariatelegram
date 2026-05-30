@@ -12,7 +12,7 @@ export default defineConfig({
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Gestão de Elevadores',
-        short_name: 'Elevadores',
+        short_name: 'HoistFlow',
         description: 'Painel de Acompanhamento de Instalação de Elevadores',
         theme_color: '#0f172a',
         background_color: '#0f172a',

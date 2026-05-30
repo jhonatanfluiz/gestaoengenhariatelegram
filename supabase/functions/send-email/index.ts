@@ -30,20 +30,20 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        from: 'ElevateSync Security <onboarding@resend.dev>',
+        from: 'HoistFlow Security <onboarding@resend.dev>',
         to: toEmails,
         subject: `⚠️ ALERTA DE SEGURANÇA: Exclusão de Gestor Master`,
         html: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
             <h2 style="color: #ef4444;">Alerta de Segurança Crítico</h2>
             <p>Olá,</p>
-            <p>Um procedimento de exclusão de um usuário de nível <strong>MASTER</strong> foi iniciado no painel ElevateSync.</p>
+            <p>Um procedimento de exclusão de um usuário de nível <strong>MASTER</strong> foi iniciado no painel HoistFlow.</p>
             <div style="background-color: #f8d7da; border-left: 5px solid #ef4444; padding: 15px; margin: 20px 0;">
               <p style="margin: 0;"><strong>Gestor a ser excluído:</strong> ${targetManagerName}</p>
               <p style="margin: 5px 0 0 0;"><strong>Iniciado por:</strong> ${deletingUserName}</p>
             </div>
             <p>Se você desconhece esta ação, acesse imediatamente o painel para revogar o acesso do usuário iniciador.</p>
-            <p>Atenciosamente,<br/>Equipe ElevateSync</p>
+            <p>Atenciosamente,<br/>Equipe HoistFlow</p>
           </div>
         `
       })

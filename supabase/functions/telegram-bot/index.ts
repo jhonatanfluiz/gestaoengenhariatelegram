@@ -176,7 +176,7 @@ Deno.serve(async (req) => {
       }
       await sendTelegram('sendMessage', {
         chat_id: String(chat_id),
-        text: text || '⚡ *Teste de Conexão*\n\nSeu Chat ID do Telegram foi configurado com sucesso no painel ElevateSync!',
+        text: text || '⚡ *Teste de Conexão*\n\nSeu Chat ID do Telegram foi configurado com sucesso no painel HoistFlow!',
         parse_mode: 'Markdown',
       }, log);
       return new Response(JSON.stringify({ ok: true, message: 'Test message sent' }), {
