@@ -1996,10 +1996,10 @@ Estime de forma realista a data estimada de término e o status do projeto basea
 - Dias Decorridos desde o Início: ${activeProject.days_elapsed} dias
 - Progresso Físico Real Acumulado: ${activeProject.overall_progress_percent}%
 
-**Fases Já Concluídas (${completedList.length}/26):**
+**Fases Já Concluídas (${completedList.length}/${projectPhases.length}):**
 ${completedList.length > 0 ? completedList.join('\n') : 'Nenhuma fase concluída ainda.'}
 
-**Fases Restantes/Pendentes (${pendingList.length}/26):**
+**Fases Restantes/Pendentes (${pendingList.length}/${projectPhases.length}):**
 ${pendingList.length > 0 ? pendingList.join('\n') : 'Todas as fases concluídas.'}
 
 **Sua tarefa:**
@@ -2283,7 +2283,7 @@ Assistente IA:`;
     const start = new Date(activeProject.start_date);
     const end = new Date(activeProject.deadline_date);
     const totalDays = Math.max(1, (end - start) / (1000 * 60 * 60 * 24));
-    const phaseCount = 26;
+    const phaseCount = projectPhases.length || 26;
     const daysPerPhase = totalDays / phaseCount;
 
     return (
@@ -2679,7 +2679,7 @@ Assistente IA:`;
                       <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', padding: '30px', borderRadius: '8px', textAlign: 'center' }}>
                         <RefreshCw size={24} className="animate-spin" style={{ color: '#06b6d4', margin: '0 auto 12px' }} />
                         <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0 }}>
-                          O Gemini está analisando as 26 fases operacionais e mapeando os principais gargalos técnicos...
+                          O Gemini está analisando as fases operacionais e mapeando os principais gargalos técnicos...
                         </p>
                       </div>
                     )}
@@ -3305,7 +3305,7 @@ Assistente IA:`;
                   {viewOnlyPhases.map((phase, index) => {
                     const phaseDate = new Date(startDateObj);
                     const totalDays = Math.max(1, (deadlineDateObj - startDateObj) / (1000 * 60 * 60 * 24));
-                    const phaseCount = 26;
+                    const phaseCount = viewOnlyPhases.length || 26;
                     const daysPerPhase = totalDays / phaseCount;
                     
                     phaseDate.setDate(phaseDate.getDate() + Math.round(daysPerPhase * (index + 1)));
@@ -3397,7 +3397,7 @@ Assistente IA:`;
             </div>
             <div style={{ width: '1px', height: '50px', background: 'rgba(255,255,255,0.1)' }}></div>
             <div>
-              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/26</span></h3>
+              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/{viewOnlyPhases.length}</span></h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Fases Concluídas</p>
             </div>
           </div>
@@ -3871,7 +3871,7 @@ Assistente IA:`;
                         <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Concluídas:</span>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                           <strong style={{ color: '#fff', fontSize: '2rem', lineHeight: '1.1' }}>{completedPhases}</strong>
-                          <span style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>/ 26</span>
+                          <span style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>/ {projectPhases.length}</span>
                         </div>
                       </div>
                     </div>
