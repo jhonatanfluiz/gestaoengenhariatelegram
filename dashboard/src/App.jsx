@@ -4228,9 +4228,16 @@ Assistente IA:`;
                 
                 const logsHoje = allLogs.filter(log => {
                   if(!log.created_at) return false;
-                  const today = new Date().toISOString().split('T')[0];
-                  return log.created_at.startsWith(today);
+                  const logDate = new Date(log.created_at);
+                  const today = new Date();
+                  return logDate.getDate() === today.getDate() && 
+                         logDate.getMonth() === today.getMonth() && 
+                         logDate.getFullYear() === today.getFullYear();
                 }).length;
+                
+                // Exemplo de tendência (pode ser calculado com base no histórico real futuramente)
+                const productivityTrend = 5; 
+                const isTrendPositive = productivityTrend >= 0;
                 
                 const handleHover = e => {
                   e.currentTarget.style.transform = 'translateY(-5px) scale(1.02)';
@@ -4301,7 +4308,17 @@ Assistente IA:`;
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
                             <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Média de Produtividade:</span>
-                            <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{avgProductivity}%</strong>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{avgProductivity}%</strong>
+                              <div style={{ 
+                                display: 'flex', alignItems: 'center', gap: '4px', 
+                                background: isTrendPositive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)', 
+                                color: isTrendPositive ? '#10b981' : '#ef4444', 
+                                padding: '4px 8px', borderRadius: '12px', fontSize: '0.85rem', fontWeight: 600 
+                              }}>
+                                {isTrendPositive ? '▲' : '▼'} {Math.abs(productivityTrend)}%
+                              </div>
+                            </div>
                           </div>
                           
                           <div className="card-details" style={{ maxHeight: 0, opacity: 0, overflow: 'hidden', transition: 'all 0.3s ease', fontSize: '0.75rem', color: '#a78bfa', marginTop: 0 }}>
