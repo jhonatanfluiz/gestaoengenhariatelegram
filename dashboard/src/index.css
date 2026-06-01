@@ -636,6 +636,51 @@ label {
 }
 
 /* Cascade layout styling and floating cards */
+/* Hover and Expansion logic for Single Project Cards */
+.project-card-hover {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: visible;
+  height: auto !important;
+  align-self: flex-start; /* Prevent stretching in flex containers */
+}
+
+/* Base state: Details hidden */
+.project-card-hover .project-card-details {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  margin-top: 0;
+}
+
+/* Hover state: Details expanded */
+.project-card-hover:hover .project-card-details {
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 16px;
+}
+
+/* Add a visual indicator that it's expandable */
+.project-card-hover::after {
+  content: '▼ Mais Detalhes';
+  display: block;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: -10px;
+  margin-bottom: 6px;
+  transition: all 0.3s ease;
+  opacity: 0.7;
+}
+
+.project-card-hover:hover::after {
+  opacity: 0;
+  max-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
 .cascade-card {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
