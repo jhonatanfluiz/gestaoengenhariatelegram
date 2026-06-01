@@ -357,8 +357,8 @@ async function askPhaseQuestion(
 ) {
   log(`askPhaseQuestion called: chatId=${chatId}, projectId=${projectId}, phaseNum=${phaseNum}`);
 
-  if (phaseNum > 26) {
-    log('All 26 phases processed. Ending checklist session.');
+  if (phaseNum > 20) {
+    log('All 20 phases processed. Ending checklist session.');
 
     let aiMessage = '';
     try {
@@ -402,7 +402,7 @@ async function askPhaseQuestion(
     
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: `🎉 **Checklist Concluído!** Você respondeu a todas as 26 fases da instalação e ajustes. Obrigado por enviar as atualizações!${aiMessage}\n\n📊 [Veja o seu relatório de progresso aqui](${reportUrl})`,
+      text: `🎉 **Checklist Concluído!** Você respondeu a todas as 20 fases da instalação e ajustes. Obrigado por enviar as atualizações!${aiMessage}\n\n📊 [Veja o seu relatório de progresso aqui](${reportUrl})`,
       parse_mode: 'Markdown',
     }, log);
     
@@ -431,7 +431,7 @@ async function askPhaseQuestion(
   log(`Sending question for Phase [${phaseNum}/26]: "${phase.name}"`);
   await sendTelegram('sendMessage', {
     chat_id: chatId,
-    text: `📍 **Fase [${phaseNum}/26]:** ${phase.name}\n\n**Esta fase já foi executada ou iniciada?**`,
+    text: `📍 **Fase [${phaseNum}/20]:** ${phase.name}\n\n**Esta fase já foi executada ou iniciada?**`,
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
@@ -482,8 +482,8 @@ async function startProjectChecklist(chatId: string, project: any, profileId: st
     (a.phases?.phase_number || 0) - (b.phases?.phase_number || 0)
   );
 
-  const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[25];
-  const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 26;
+  const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[19];
+  const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 20;
 
   await sendTelegram('sendMessage', {
     chat_id: chatId,
@@ -533,7 +533,7 @@ async function handleMessage(message: any, log: (...args: any[]) => void) {
     log('Processing /start command');
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: `Olá, **${profile.full_name}**! Técnico autorizado de instalação.\n\nEste bot serve para atualizar as 26 fases da instalação e ajustes de elevadores comerciais atribuídas à sua equipe.\n\nUse o comando /atualizar para enviar o relatório de progresso do seu projeto atual.`,
+      text: `Olá, **${profile.full_name}**! Técnico autorizado de instalação.\n\nEste bot serve para atualizar as 20 fases da instalação de elevadores comerciais atribuídas à sua equipe.\n\nUse o comando /atualizar para enviar o relatório de progresso do seu projeto atual.`,
       parse_mode: 'Markdown',
     }, log);
     return;
@@ -763,14 +763,14 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
         await sendTelegram('editMessageText', {
           chat_id: chatId,
           message_id: callbackQuery.message.message_id,
-          text: `📍 **Fase [${phaseNum}/26]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👍 Sim`,
+          text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👍 Sim`,
           parse_mode: 'Markdown'
         }, log);
       }
 
       await sendTelegram('sendMessage', {
         chat_id: chatId,
-        text: `📍 **Fase [${phaseNum}/26]:** ${phaseName}\n\nQual o **percentual executado**?`,
+        text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\nQual o **percentual executado**?`,
         reply_markup: {
           inline_keyboard: [
             [

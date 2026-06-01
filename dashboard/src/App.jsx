@@ -442,7 +442,9 @@ export default function App() {
 
   const [newAjustadorName, setNewAjustadorName] = useState('');
   const [newAjustadorEmail, setNewAjustadorEmail] = useState('');
+  const [newAjustadorPassword, setNewAjustadorPassword] = useState('');
   const [newAjustadorId, setNewAjustadorId] = useState('');
+  const [newAjustadorTeamId, setNewAjustadorTeamId] = useState('');
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyCnpj, setNewCompanyCnpj] = useState('');
@@ -1138,25 +1140,70 @@ export default function App() {
 
   const handleCreateAjustador = async (e) => {
     e.preventDefault();
-    if (!newAjustadorName || !newAjustadorEmail || !newAjustadorId) return;
+    if (!newAjustadorName || !newAjustadorEmail || !newAjustadorPassword || !newAjustadorId) return;
 
-    const { error } = await supabase
-      .from('profiles')
-      .insert({
-        full_name: newAjustadorName,
-        email: newAjustadorEmail,
-        identification_id: newAjustadorId,
-        role: 'ajustador'
+    try {
+      showToast('Cadastrando novo ajustador...');
+      
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false
+        }
       });
 
-    if (error) showToast('Erro ao cadastrar ajustador: ' + error.message, 'danger');
-    else {
-      showToast(`Ajustador "${newAjustadorName}" cadastrado!`);
+      const { data, error: signUpError } = await authClient.auth.signUp({
+        email: newAjustadorEmail,
+        password: newAjustadorPassword
+      });
+
+      if (signUpError) {
+        throw signUpError;
+      }
+
+      if (!data.user) {
+        throw new Error('Falha ao criar usuário de autenticação do ajustador.');
+      }
+
+      const newUserId = data.user.id;
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: newUserId,
+          auth_user_id: newUserId,
+          full_name: newAjustadorName,
+          email: newAjustadorEmail,
+          identification_id: newAjustadorId,
+          role: 'ajustador'
+        });
+
+      if (profileError) {
+        if (profileError.message.includes('profiles_auth_user_id_fkey') || profileError.code === '23503') {
+          throw new Error('Este e-mail já está cadastrado no sistema.');
+        }
+        throw profileError;
+      }
+
+      if (newAjustadorTeamId) {
+        await supabase.from('team_members').insert({
+          team_id: newAjustadorTeamId,
+          profile_id: newUserId
+        });
+      }
+
+      showToast(`Ajustador "${newAjustadorName}" cadastrado com sucesso!`);
       setNewAjustadorName('');
       setNewAjustadorEmail('');
+      setNewAjustadorPassword('');
       setNewAjustadorId('');
+      setNewAjustadorTeamId('');
       setActiveTab('teams');
       fetchDashboardData();
+    } catch (err) {
+      console.error('Error creating ajustador:', err);
+      showToast('Erro ao criar ajustador: ' + err.message, 'danger');
     }
   };
 
@@ -5977,12 +6024,25 @@ Assistente IA:`;
                     <input type="text" value={newAjustadorName} onChange={e => setNewAjustadorName(e.target.value)} required placeholder="Ex: Carlos Silva" />
                   </div>
                   <div>
-                    <label>E-mail (Login futuro ou contato)</label>
+                    <label>E-mail (Login)</label>
                     <input type="email" value={newAjustadorEmail} onChange={e => setNewAjustadorEmail(e.target.value)} required placeholder="Ex: carlos@empresa.com" />
+                  </div>
+                  <div>
+                    <label>Senha de Acesso</label>
+                    <input type="password" value={newAjustadorPassword} onChange={e => setNewAjustadorPassword(e.target.value)} required placeholder="Mínimo 6 caracteres" />
                   </div>
                   <div>
                     <label>ID de Identificação (CPF/Matrícula)</label>
                     <input type="text" value={newAjustadorId} onChange={e => setNewAjustadorId(e.target.value)} required placeholder="Ex: 12345" />
+                  </div>
+                  <div>
+                    <label>Equipe Fixa (Opcional)</label>
+                    <select value={newAjustadorTeamId} onChange={e => setNewAjustadorTeamId(e.target.value)}>
+                      <option value="">-- Nenhuma Equipe Fixa --</option>
+                      {teams.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Ajustador</button>
                 </form>
