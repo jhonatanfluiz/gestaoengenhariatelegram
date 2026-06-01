@@ -3720,7 +3720,7 @@ Assistente IA:`;
               {globalIssues ? globalIssues.length : 0}
             </span>
           </button>
-          {!userProfile?.is_readonly && (
+          {!userProfile?.is_readonly && userProfile?.role !== 'ajustador' && (
             <button 
               onClick={() => { setActiveTab('new-registry'); setActiveProject(null); }} 
               className="btn" 
@@ -4261,81 +4261,85 @@ Assistente IA:`;
                       </div>
                     </div>
 
-                    <div onClick={() => setActiveTab('s-curve')} style={{...cardStyle, borderTop: '4px solid #8b5cf6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b5cf6' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📈 Curvas de Evolução</h3>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
-                        <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Média de Produtividade:</span>
-                        <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{avgProductivity}%</strong>
-                      </div>
-                      
-                      <div className="card-details" style={{ maxHeight: 0, opacity: 0, overflow: 'hidden', transition: 'all 0.3s ease', fontSize: '0.75rem', color: '#a78bfa', marginTop: 0 }}>
-                        <hr style={{ borderColor: 'rgba(139, 92, 246, 0.2)', margin: '4px 0 8px 0' }} />
-                        <strong>Fórmula:</strong> (Σ % de Avanço) / (Total de Obras)<br/>
-                        <strong>Comparação Ideal:</strong> <span style={{ color: '#fff' }}>100%</span> (Aderência total ao Cronograma)
-                      </div>
-                    </div>
+                    {userProfile?.role !== 'ajustador' && (
+                      <>
+                        <div onClick={() => setActiveTab('s-curve')} style={{...cardStyle, borderTop: '4px solid #8b5cf6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b5cf6' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📈 Curvas de Evolução</h3>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Média de Produtividade:</span>
+                            <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{avgProductivity}%</strong>
+                          </div>
+                          
+                          <div className="card-details" style={{ maxHeight: 0, opacity: 0, overflow: 'hidden', transition: 'all 0.3s ease', fontSize: '0.75rem', color: '#a78bfa', marginTop: 0 }}>
+                            <hr style={{ borderColor: 'rgba(139, 92, 246, 0.2)', margin: '4px 0 8px 0' }} />
+                            <strong>Fórmula:</strong> (Σ % de Avanço) / (Total de Obras)<br/>
+                            <strong>Comparação Ideal:</strong> <span style={{ color: '#fff' }}>100%</span> (Aderência total ao Cronograma)
+                          </div>
+                        </div>
 
-                    <div onClick={() => setActiveTab('ranking')} style={{...cardStyle, borderTop: '4px solid #ef4444'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🎯 Previsões de Entrega</h3>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
-                        <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Concluídos/Entregues:</span>
-                        <strong style={{ color: '#10b981', fontSize: '2.5rem', lineHeight: '1.1' }}>{deliveredTotal}</strong>
-                      </div>
-                      <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>Encerram neste mês: <strong style={{ color: '#fff' }}>{endingThisMonth}</strong></p>
-                    </div>
+                        <div onClick={() => setActiveTab('ranking')} style={{...cardStyle, borderTop: '4px solid #ef4444'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🎯 Previsões de Entrega</h3>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Concluídos/Entregues:</span>
+                            <strong style={{ color: '#10b981', fontSize: '2.5rem', lineHeight: '1.1' }}>{deliveredTotal}</strong>
+                          </div>
+                          <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>Encerram neste mês: <strong style={{ color: '#fff' }}>{endingThisMonth}</strong></p>
+                        </div>
 
-                    <div onClick={() => setActiveTab('teams')} style={{...cardStyle, borderTop: '4px solid #10b981'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>👥 Equipes Fixas & Técnicos</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Gestão de equipe e perfis</p>
-                    </div>
+                        <div onClick={() => setActiveTab('teams')} style={{...cardStyle, borderTop: '4px solid #10b981'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>👥 Equipes Fixas & Técnicos</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Gestão de equipe e perfis</p>
+                        </div>
 
-                    <div onClick={() => setActiveTab('companies')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🏢 Empresas Contratadas</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Gerenciar parceiros comerciais</p>
-                    </div>
+                        <div onClick={() => setActiveTab('companies')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🏢 Empresas Contratadas</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Gerenciar parceiros comerciais</p>
+                        </div>
 
-                    <div onClick={() => setActiveTab('phases')} style={{...cardStyle, borderTop: '4px solid #3b82f6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📋 Checklists & Fases</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Configuração das etapas da obra</p>
-                    </div>
+                        <div onClick={() => setActiveTab('phases')} style={{...cardStyle, borderTop: '4px solid #3b82f6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📋 Checklists & Fases</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Configuração das etapas da obra</p>
+                        </div>
 
-                    <div onClick={() => setActiveTab('history')} style={{...cardStyle, borderTop: '4px solid #a855f7'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a855f7' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🕒 Histórico & Auditoria</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Logs completos do sistema</p>
-                    </div>
+                        <div onClick={() => setActiveTab('history')} style={{...cardStyle, borderTop: '4px solid #a855f7'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a855f7' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🕒 Histórico & Auditoria</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Logs completos do sistema</p>
+                        </div>
 
-                    <div onClick={handleOpenGoogleEarth} style={{...cardStyle, borderTop: '4px solid #f43f5e'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f43f5e' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🌍 Mapa de Obras</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar obras no Google Earth</p>
-                    </div>
+                        <div onClick={handleOpenGoogleEarth} style={{...cardStyle, borderTop: '4px solid #f43f5e'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f43f5e' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🌍 Mapa de Obras</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar obras no Google Earth</p>
+                        </div>
 
-                    <div onClick={() => setActiveTab('client-links')} style={{...cardStyle, borderTop: '4px solid #14b8a6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#14b8a6' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📱 Informações Cliente</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Links para visualização dos clientes</p>
-                    </div>
+                        <div onClick={() => setActiveTab('client-links')} style={{...cardStyle, borderTop: '4px solid #14b8a6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#14b8a6' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📱 Informações Cliente</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Links para visualização dos clientes</p>
+                        </div>
 
-                    <div onClick={() => setActiveTab('ajustadores_list')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>⚙️ Ajustadores</h3>
-                      </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar e remover ajustadores</p>
-                    </div>
+                        <div onClick={() => setActiveTab('ajustadores_list')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.2rem' }}>⚙️ Ajustadores</h3>
+                          </div>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar e remover ajustadores</p>
+                        </div>
+                      </>
+                    )}
                   </>
                 );
               })()}
