@@ -4226,6 +4226,12 @@ Assistente IA:`;
                   transition: 'all 0.3s ease'
                 };
                 
+                const logsHoje = allLogs.filter(log => {
+                  if(!log.created_at) return false;
+                  const today = new Date().toISOString().split('T')[0];
+                  return log.created_at.startsWith(today);
+                }).length;
+                
                 const handleHover = e => {
                   e.currentTarget.style.transform = 'translateY(-5px) scale(1.02)';
                   e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.4)';
@@ -4341,14 +4347,21 @@ Assistente IA:`;
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3b82f6' }}>
                             <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📋 Checklists & Fases</h3>
                           </div>
-                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Configuração das etapas da obra</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Total de Fases:</span>
+                            <strong style={{ color: '#3b82f6', fontSize: '2.5rem', lineHeight: '1.1' }}>{phasesList?.length || 26}</strong>
+                          </div>
                         </div>
 
                         <div onClick={() => setActiveTab('history')} style={{...cardStyle, borderTop: '4px solid #a855f7'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a855f7' }}>
                             <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🕒 Histórico & Auditoria</h3>
                           </div>
-                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Logs completos do sistema</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Logs Registrados Hoje:</span>
+                            <strong style={{ color: '#a855f7', fontSize: '2.5rem', lineHeight: '1.1' }}>{logsHoje}</strong>
+                          </div>
+                          <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>Logs totais: <strong style={{ color: '#fff' }}>{allLogs.length}</strong></p>
                         </div>
 
                         <div onClick={handleOpenGoogleEarth} style={{...cardStyle, borderTop: '4px solid #f43f5e'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
@@ -4369,7 +4382,10 @@ Assistente IA:`;
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
                             <h3 style={{ margin: 0, fontSize: '1.2rem' }}>⚙️ Ajustadores</h3>
                           </div>
-                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar e remover ajustadores</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Ajustadores Ativos:</span>
+                            <strong style={{ color: '#f59e0b', fontSize: '2.5rem', lineHeight: '1.1' }}>{ajustadores.length}</strong>
+                          </div>
                         </div>
                       </>
                     )}
