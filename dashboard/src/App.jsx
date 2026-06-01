@@ -57,6 +57,18 @@ export default function App() {
             .single();
 
           if (projErr) throw projErr;
+          
+          // Buscar progresso total pela view de métricas
+          const { data: metricsData } = await supabase
+            .from('vw_looker_studio_metrics')
+            .select('overall_progress_percent')
+            .eq('project_id', viewOnlyProjectId)
+            .single();
+            
+          if (metricsData) {
+            projData.overall_progress_percent = metricsData.overall_progress_percent;
+          }
+
           setViewOnlyProject(projData);
 
           // Fetch phases progress
@@ -103,11 +115,14 @@ export default function App() {
 
   // Data lists
   const [projects, setProjects] = useState([]);
+  const [projectStatusFilter, setProjectStatusFilter] = useState('all');
   const [technicians, setTechnicians] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [teams, setTeams] = useState([]);
   const [managers, setManagers] = useState([]);
   const [phasesList, setPhasesList] = useState([]);
+  const [adjustmentPhasesList, setAdjustmentPhasesList] = useState([]);
+  const [allAdjustmentsProgress, setAllAdjustmentsProgress] = useState([]);
   const [allLogs, setAllLogs] = useState([]);
   const [pendingRankings, setPendingRankings] = useState([]);
   const [globalIssues, setGlobalIssues] = useState([]);
@@ -222,6 +237,9 @@ export default function App() {
   // Editing state for CRUD (Obras, Equipes, Técnicos, Empresas)
   const [editingElement, setEditingElement] = useState(null);
   const [editName, setEditName] = useState('');
+  const [editContractNumber, setEditContractNumber] = useState('');
+  const [editBuildingName, setEditBuildingName] = useState('');
+  const [editClientEmails, setEditClientEmails] = useState('');
   const [editModel, setEditModel] = useState('');
   const [editCompanyId, setEditCompanyId] = useState('');
   const [editTeamId, setEditTeamId] = useState('');
@@ -248,6 +266,7 @@ export default function App() {
 
   // Project sub-tab navigation
   const [projectSubTab, setProjectSubTab] = useState('menu'); // 'menu' | 'phases' | 'report' | 'history' | 'schedule' | 'issues'
+  const [expandedContracts, setExpandedContracts] = useState({});
 
   // Report modal state
   const [activeReportModal, setActiveReportModal] = useState(null); // { type: 'tech' | 'company', data: item }
@@ -281,6 +300,7 @@ export default function App() {
   };
 
   const [rankingMonthFilter, setRankingMonthFilter] = useState('all');
+  const [rankingStatusFilter, setRankingStatusFilter] = useState('assembly');
 
   // AI Chat Assistant States
   const [chatMessages, setChatMessages] = useState(() => {
@@ -399,6 +419,9 @@ export default function App() {
 
   // Forms
   const [newProjName, setNewProjName] = useState('');
+  const [newProjContractNumber, setNewProjContractNumber] = useState('');
+  const [newProjBuildingName, setNewProjBuildingName] = useState('');
+  const [newProjClientEmails, setNewProjClientEmails] = useState('');
   const [newProjModel, setNewProjModel] = useState('');
   const [newProjCompanyId, setNewProjCompanyId] = useState('');
   const [newProjTeamId, setNewProjTeamId] = useState('');
@@ -416,6 +439,10 @@ export default function App() {
   const [newTechName, setNewTechName] = useState('');
   const [newTechTelegram, setNewTechTelegram] = useState('');
   const [newTechCompanyId, setNewTechCompanyId] = useState('');
+
+  const [newAjustadorName, setNewAjustadorName] = useState('');
+  const [newAjustadorEmail, setNewAjustadorEmail] = useState('');
+  const [newAjustadorId, setNewAjustadorId] = useState('');
 
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyCnpj, setNewCompanyCnpj] = useState('');
@@ -658,6 +685,12 @@ export default function App() {
     if (err6) console.error(err6);
     else setPhasesList(phs || []);
 
+    const { data: adjPhs, error: errAdjPhs } = await supabase.from('phases').select('*').gte('phase_number', 21).order('phase_number');
+    if (!errAdjPhs) setAdjustmentPhasesList(adjPhs || []);
+
+    const { data: adjProg, error: errAdjProg } = await supabase.from('project_phases_progress').select('*');
+    if (!errAdjProg) setAllAdjustmentsProgress(adjProg || []);
+
     // 7. Fetch all audit logs
     let logsQuery = supabase.from('change_logs').select(`
       *,
@@ -822,34 +855,56 @@ export default function App() {
   };
 
   const fetchSCurveData = async (projId) => {
-    const { data, error } = await supabase
+    // Buscar log semanal
+    const { data: logData, error: logError } = await supabase
       .from('weekly_answers_log')
-      .select('week_start_date, progress_percent')
-      .eq('project_id', projId);
+      .select('week_start_date, phase_id, progress_percent')
+      .eq('project_id', projId)
+      .order('week_start_date', { ascending: true });
 
-    if (error) {
-      console.error(error);
+    // Buscar pesos das fases
+    const { data: phasesData, error: phasesError } = await supabase
+      .from('phases')
+      .select('id, weight');
+
+    if (logError || phasesError) {
+      console.error(logError || phasesError);
       return;
     }
 
-    // Group logs by week and calculate project overall average progress for each week
-    const weeklyProgressMap = {};
-    data.forEach(log => {
-      const week = log.week_start_date;
-      if (!weeklyProgressMap[week]) {
-        weeklyProgressMap[week] = { sum: 0, count: 0 };
-      }
-      weeklyProgressMap[week].sum += log.progress_percent;
-      weeklyProgressMap[week].count += 1;
-    });
+    if (!logData || logData.length === 0) {
+      setSCurveData([]);
+      return;
+    }
 
-    const formattedSCurve = Object.keys(weeklyProgressMap).map(week => {
-      const avg = Math.round(weeklyProgressMap[week].sum / 20); // Average of 20 phases
+    const phaseWeights = {};
+    if (phasesData) {
+      phasesData.forEach(p => phaseWeights[p.id] = p.weight);
+    }
+
+    const uniqueWeeks = [...new Set(logData.map(d => d.week_start_date))].sort((a,b) => new Date(a).getTime() - new Date(b).getTime());
+    const phaseState = {}; 
+
+    const formattedSCurve = uniqueWeeks.map(week => {
+      const logsThisWeek = logData.filter(d => d.week_start_date === week);
+      
+      logsThisWeek.forEach(log => {
+        phaseState[log.phase_id] = log.progress_percent;
+      });
+      
+      let weightedSum = 0;
+      Object.keys(phaseState).forEach(phaseId => {
+        const progress = phaseState[phaseId];
+        const weight = phaseWeights[phaseId] || 5; // Fallback para 5%
+        weightedSum += (progress * weight) / 100;
+      });
+      
+      const avg = Math.round(weightedSum); 
       return {
         week,
         progress: avg
       };
-    }).sort((a, b) => new Date(a.week).getTime() - new Date(b.week).getTime());
+    });
 
     setSCurveData(formattedSCurve);
   };
@@ -969,6 +1024,9 @@ export default function App() {
       .from('projects')
       .insert({
         name: newProjName,
+        contract_number: newProjContractNumber,
+        building_name: newProjBuildingName,
+        client_emails: newProjClientEmails,
         elevator_model: newProjModel,
         company_id: newProjCompanyId,
         team_id: newProjTeamId || null,
@@ -991,6 +1049,9 @@ export default function App() {
     } else {
       showToast(`Obra "${newProjName}" criada. 20 fases padrão inicializadas!`);
       setNewProjName('');
+      setNewProjContractNumber('');
+      setNewProjBuildingName('');
+      setNewProjClientEmails('');
       setNewProjModel('');
       setNewProjCompanyId('');
       setNewProjTeamId('');
@@ -1071,6 +1132,83 @@ export default function App() {
       setNewTechTelegram('');
       setNewTechCompanyId('');
       setActiveTab('teams'); // Go to teams tab to view teammates
+      fetchDashboardData();
+    }
+  };
+
+  const handleCreateAjustador = async (e) => {
+    e.preventDefault();
+    if (!newAjustadorName || !newAjustadorEmail || !newAjustadorId) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .insert({
+        full_name: newAjustadorName,
+        email: newAjustadorEmail,
+        identification_id: newAjustadorId,
+        role: 'ajustador'
+      });
+
+    if (error) showToast('Erro ao cadastrar ajustador: ' + error.message, 'danger');
+    else {
+      showToast(`Ajustador "${newAjustadorName}" cadastrado!`);
+      setNewAjustadorName('');
+      setNewAjustadorEmail('');
+      setNewAjustadorId('');
+      setActiveTab('teams');
+      fetchDashboardData();
+    }
+  };
+
+  const handleStartAdjustment = async (projectId) => {
+    const { error } = await supabase
+      .from('projects')
+      .update({ adjustment_status: 'in_progress', adjusted_by_id: userProfile?.id })
+      .eq('id', projectId);
+    
+    if (error) showToast('Erro ao iniciar ajuste: ' + error.message, 'danger');
+    else {
+      showToast('Ajuste iniciado com sucesso!');
+      fetchDashboardData();
+    }
+  };
+
+  const handleCancelAdjustment = async (projectId) => {
+    if (!window.confirm('Tem certeza que deseja cancelar o ajuste e retornar a obra para "Pendente"?')) return;
+    const { error } = await supabase
+      .from('projects')
+      .update({ adjustment_status: 'pending' })
+      .eq('id', projectId);
+    
+    if (error) showToast('Erro ao cancelar ajuste: ' + error.message, 'danger');
+    else {
+      showToast('Ajuste cancelado com sucesso!');
+      fetchDashboardData();
+    }
+  };
+
+  const handleUpdateAdjustmentPhase = async (projectId, phaseId, started, progressPercent) => {
+    const { error } = await supabase
+      .from('project_phases_progress')
+      .upsert({ project_id: projectId, phase_id: phaseId, started, progress_percent: parseInt(progressPercent) }, { onConflict: 'project_id, phase_id' });
+    
+    if (error) showToast('Erro ao atualizar fase de ajuste: ' + error.message, 'danger');
+    else {
+      showToast('Progresso salvo!');
+      const { data } = await supabase.from('project_phases_progress').select('*');
+      if (data) setAllAdjustmentsProgress(data);
+    }
+  };
+
+  const handleUpdatePendencias = async (projectId, pendenciasText) => {
+    const { error } = await supabase
+      .from('projects')
+      .update({ pendencias: pendenciasText })
+      .eq('id', projectId);
+    
+    if (error) showToast('Erro ao atualizar pendências: ' + error.message, 'danger');
+    else {
+      showToast('Pendências salvas!');
       fetchDashboardData();
     }
   };
@@ -1341,6 +1479,9 @@ export default function App() {
     setEditingElement({ type, data: item });
     if (type === 'project') {
       setEditName(item.project_name || item.name || '');
+      setEditContractNumber(item.contract_number || '');
+      setEditBuildingName(item.building_name || '');
+      setEditClientEmails(item.client_emails || '');
       setEditModel(item.elevator_model || '');
       setEditCompanyId(item.company_id || '');
       setEditTeamId(item.team_id || '');
@@ -1451,6 +1592,9 @@ export default function App() {
       .from('projects')
       .update({
         name: editName,
+        contract_number: editContractNumber,
+        building_name: editBuildingName,
+        client_emails: editClientEmails,
         elevator_model: editModel,
         company_id: editCompanyId || null,
         team_id: editTeamId || null,
@@ -1759,7 +1903,7 @@ Gere o relatório formatado em Markdown rico e profissional (use emojis, seçõe
       const completedList = projectPhases.filter(p => p.progress_percent === 100).map(p => `Fase ${p.phases.phase_number}: ${p.phases.name}`);
       const pendingList = projectPhases.filter(p => p.progress_percent < 100).map(p => `Fase ${p.phases.phase_number}: ${p.phases.name} (${p.progress_percent}% concluído)`);
 
-      const prompt = `Você é um supervisor sênior especialista em instalação de elevadores comerciais. 
+      const prompt = `Você é um supervisor sênior especialista em instalação e ajuste de elevadores comerciais. 
 Estime de forma realista a data estimada de término e o status do projeto baseado nas informações abaixo.
 
 **Dados da Obra:**
@@ -1770,17 +1914,17 @@ Estime de forma realista a data estimada de término e o status do projeto basea
 - Dias Decorridos desde o Início: ${activeProject.days_elapsed} dias
 - Progresso Físico Real Acumulado: ${activeProject.overall_progress_percent}%
 
-**Fases Já Concluídas (${completedList.length}/20):**
+**Fases Já Concluídas (${completedList.length}/26):**
 ${completedList.length > 0 ? completedList.join('\n') : 'Nenhuma fase concluída ainda.'}
 
-**Fases Restantes/Pendentes (${pendingList.length}/20):**
+**Fases Restantes/Pendentes (${pendingList.length}/26):**
 ${pendingList.length > 0 ? pendingList.join('\n') : 'Todas as fases concluídas.'}
 
 **Sua tarefa:**
 Escreva uma previsão técnica muito objetiva de término para o gestor.
-1. **Previsão Realista de Término**: Qual a estimativa de dias adicionais e a data aproximada no calendário (ex: DD/MM/AAAA ou meados de tal mês)? Lembre-se que as fases finais de montagem (Ajustes elétricos, Testes operacionais, Ajustes finais e acabamento, Entrega técnica ao cliente) são complexas, exigem precisão de testes e costumam levar cerca de 3 a 5 dias cada caso haja problemas de fiação ou nivelamento.
+1. **Previsão Realista de Término**: Qual a estimativa de dias adicionais e a data aproximada no calendário (ex: DD/MM/AAAA ou meados de tal mês)? Lembre-se que as fases finais de Ajustes (como Energização, Parametrização, Testes Dinâmicos de Segurança e Comissionamento/MAX) são complexas, exigem precisão absoluta e costumam levar cerca de 1 a 3 dias cada, dependendo de eventuais falhas detectadas.
 2. **Status da Obra**: O projeto deve terminar Dentro do Prazo ou Atrasar? Justifique com base nos dias restantes.
-3. **Ponto de Atenção Técnico**: Cite qual das fases pendentes exige maior cuidado de montagem e por quê.
+3. **Ponto de Atenção Técnico**: Cite qual das fases pendentes exige maior cuidado técnico e por quê.
 
 Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa com negritos nos prazos e datas. Não use introduções formais.`;
 
@@ -1789,6 +1933,7 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
       });
 
       if (error) throw error;
+      if (data && data.error) throw new Error(data.error + (data.details ? ' | ' + data.details : ''));
       if (!data || !data.text) throw new Error('Sem resposta da IA.');
       
       const text = data.text;
@@ -1830,13 +1975,12 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
         
         projectsContext += `${index + 1}. **Obra**: ${p.project_name}
    - Elevador: ${p.elevator_model}
-   - Empresa Contratada: ${p.company_name || 'Sem empresa'}
-   - Técnico Responsável: ${p.technician_name || 'Não definido'}
    - Progresso Físico Real: ${p.overall_progress_percent}%
    - Dias Decorridos: ${p.days_elapsed} dias
    - Dias Restantes do Contrato: ${p.days_remaining} dias
    - Status do Prazo: ${p.is_delayed ? 'ATRASADA' : 'NO PRAZO'}
-   - Lembretes Telegram: ${p.notification_frequency || 'weekly'}
+   - Status de Ajuste/Montagem: ${p.adjustment_status || 'Montagem/Padrão'}
+   - Quantidade de Pendências (Faltantes): ${p.pendencias || 'Nenhuma/Não listada'}
    - Projeção Linear de Término: ${linearEst.text}
    - Previsão IA de Término: ${savedForecast}\n\n`;
       });
@@ -1856,12 +2000,10 @@ Gere uma resposta curta (máximo de 150 palavras), formatada de maneira limpa co
       }
 
       const systemPrompt = `Você é o Co-piloto de Gestão Inteligente e Assistente IA do HoistFlow.
-Você é um engenheiro eletrônico sênior e supervisor de instalação especialista em gestão de obras de elevadores comerciais.
-Sua missão é responder perguntas do gestor sobre o andamento das obras, eficiência de equipes e prover suporte técnico.
+Você é um engenheiro sênior e supervisor especialista em gestão de obras de elevadores comerciais.
+Sua missão é responder perguntas do gestor sobre o andamento das obras e prever cronogramas, utilizando os dados em tempo real abaixo.
 
-Você tem acesso ao seguinte snapshot de dados em tempo real do banco de dados (Supabase):
-
-**OBRAS CADASTRADAS E METRICAS:**
+**OBRAS CADASTRADAS E METRICAS (INCLUINDO AJUSTES E PENDÊNCIAS):**
 ${projectsContext || 'Nenhuma obra cadastrada.'}
 
 **EMPRESAS CONTRATADAS:**
@@ -1876,14 +2018,13 @@ ${spreadsheetContext}
 
 **INSTRUÇÕES DE RESPOSTA:**
 1. Responda em Markdown rico e profissional, de forma objetiva, direta e amigável.
-2. Sempre que o usuário pedir resumos, estatísticas ou relatórios (ex: "relatório para WhatsApp", "resumo para copiar"), formate a resposta com emojis e marcadores para que fique perfeita para colar no WhatsApp.
-3. Para dúvidas técnicas de montagem (fases de instalação, ajustes, etc.), use sua expertise em elevadores comerciais para responder com autoridade.
-4. Se o usuário perguntar sobre obras específicas, use os dados fornecidos no snapshot (prazos, progresso, linear e IA) para responder de forma precisa.
-5. Caso o usuário solicite a **Previsão de Capacidade (4 Meses)** (especialmente usando os dados da planilha de obras a iniciar anexada), gere uma análise preditiva detalhada para os próximos 4 meses. Para cada mês:
-   - Liste quais obras ativas projetam conclusão naquele mês (e quais técnicos correspondentes serão liberados/ficarão disponíveis).
-   - Liste quais novas obras da planilha enviada estão agendadas para começar naquele mês.
-   - Recomende a alocação dos técnicos liberados ou ociosos para essas novas obras.
-   - Aponte se haverá sobrecarga (obras sem técnicos) ou ociosidade. Apresente um balanço final em tabelas Markdown estruturadas mês a mês.
+2. Sempre que o usuário pedir resumos ou previsões, formate a resposta com tabelas, emojis e marcadores visuais.
+3. **PREVISÕES PARA 30 E 60 DIAS**: Quando o gestor pedir previsões de entregas para clientes ou metas para os próximos 30/60 meses/dias:
+   - Analise o "Progresso Físico Real", os "Dias Decorridos", o "Status de Ajuste/Montagem" e a "Quantidade de Pendências".
+   - Obras com progresso alto (>80%), na fase de "Ajustes", ou com poucas pendências devem ser as fortes candidatas para 30 dias.
+   - Obras em montagem inicial devem ser projetadas para 60 dias ou mais, cruzando com a "Projeção Linear".
+   - Separe de forma super clara: 🟢 Entregas nos próximos 30 dias vs 🟡 Entregas nos próximos 60 dias.
+4. Para dúvidas técnicas de montagem, use sua expertise para orientar com autoridade.
 
 Histórico da conversa atual:
 ${chatMessages.map(msg => `${msg.role === 'user' ? 'Gestor' : 'Assistente IA'}: ${msg.content}`).join('\n')}
@@ -2059,7 +2200,7 @@ Assistente IA:`;
     const start = new Date(activeProject.start_date);
     const end = new Date(activeProject.deadline_date);
     const totalDays = Math.max(1, (end - start) / (1000 * 60 * 60 * 24));
-    const phaseCount = projectPhases.length || 20;
+    const phaseCount = 26;
     const daysPerPhase = totalDays / phaseCount;
 
     return (
@@ -2286,7 +2427,7 @@ Assistente IA:`;
           </div>
         </div>
 
-        {/* Main table of 20 phases checklist status */}
+        {/* Main table of 26 phases checklist status */}
         <div>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '12px' }}>Fases Técnicas de Instalação</h3>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -2455,7 +2596,7 @@ Assistente IA:`;
                       <div style={{ background: 'rgba(255,255,255,0.01)', border: '1px solid rgba(255,255,255,0.03)', padding: '30px', borderRadius: '8px', textAlign: 'center' }}>
                         <RefreshCw size={24} className="animate-spin" style={{ color: '#06b6d4', margin: '0 auto 12px' }} />
                         <p style={{ color: '#94a3b8', fontSize: '0.8rem', margin: 0 }}>
-                          O Gemini está analisando as 20 fases operacionais e mapeando os principais gargalos técnicos...
+                          O Gemini está analisando as 26 fases operacionais e mapeando os principais gargalos técnicos...
                         </p>
                       </div>
                     )}
@@ -2533,6 +2674,18 @@ Assistente IA:`;
               <div>
                 <label>Identificação / Nome da Obra</label>
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required />
+              </div>
+              <div>
+                <label>Nome do Empreendimento</label>
+                <input type="text" value={editBuildingName} onChange={e => setEditBuildingName(e.target.value)} placeholder="Ex: Shopping Iguatemi" />
+              </div>
+              <div>
+                <label>Número do Contrato</label>
+                <input type="text" value={editContractNumber} onChange={e => setEditContractNumber(e.target.value)} placeholder="Ex: CT-2023-001" />
+              </div>
+              <div>
+                <label>E-mails do Cliente (separados por vírgula)</label>
+                <input type="text" value={editClientEmails} onChange={e => setEditClientEmails(e.target.value)} placeholder="Ex: cliente@email.com, sindico@email.com" />
               </div>
               <div>
                 <label>Modelo do Elevador</label>
@@ -2751,6 +2904,17 @@ Assistente IA:`;
       );
     }
 
+    const parseDateUTC = (dateStr) => {
+      if (!dateStr) return 0;
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return 0;
+      return Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    };
+
+    const proj = (viewOnlyProject && viewOnlyProject.id === sCurveProjId) 
+      ? viewOnlyProject 
+      : projects.find(p => p.project_id === sCurveProjId);
+
     const width = 500;
     const height = 220;
     const padding = 35;
@@ -2762,13 +2926,31 @@ Assistente IA:`;
     const svgPoints = sCurveData.map((d, index) => {
       const x = padding + index * xStep;
       // 0% progress starts at bottom (height - padding), 100% starts at top (padding)
-      const y = (height - padding) - (d.progress / 100) * (height - padding * 2);
-      return { x, y, label: `${d.progress}%`, week: d.week };
+      const yRealizado = (height - padding) - (d.progress / 100) * (height - padding * 2);
+      
+      let expectedProgress = 0;
+      if (proj && proj.start_date && proj.deadline_date) {
+        const start = parseDateUTC(proj.start_date);
+        const end = parseDateUTC(proj.deadline_date);
+        const target = parseDateUTC(d.week);
+        const totalDur = end - start;
+        if (totalDur > 0) {
+          const elap = target - start;
+          expectedProgress = elap <= 0 ? 0 : Math.min(100, Math.round((elap / totalDur) * 100));
+        } else {
+          expectedProgress = 100;
+        }
+      }
+      const yEsperado = (height - padding) - (expectedProgress / 100) * (height - padding * 2);
+
+      return { x, yRealizado, yEsperado, labelRealizado: `${d.progress}%`, labelEsperado: `${expectedProgress}%`, expectedProgress, progress: d.progress, week: d.week };
     });
 
-    let pathD = '';
+    let pathDRealizado = '';
+    let pathDEsperado = '';
     if (svgPoints.length > 0) {
-      pathD = `M ${svgPoints[0].x} ${svgPoints[0].y} ` + svgPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+      pathDRealizado = `M ${svgPoints[0].x} ${svgPoints[0].yRealizado} ` + svgPoints.slice(1).map(p => `L ${p.x} ${p.yRealizado}`).join(' ');
+      pathDEsperado = `M ${svgPoints[0].x} ${svgPoints[0].yEsperado} ` + svgPoints.slice(1).map(p => `L ${p.x} ${p.yEsperado}`).join(' ');
     }
 
     return (
@@ -2785,16 +2967,20 @@ Assistente IA:`;
             );
           })}
 
-          {/* S-Curve Path Line */}
-          {pathD && <path d={pathD} fill="none" stroke="#06b6d4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0px 0px 6px rgba(6,182,212,0.4))' }} />}
+          {/* S-Curve Path Line - Expected */}
+          {pathDEsperado && <path d={pathDEsperado} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4,4" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }} />}
+
+          {/* S-Curve Path Line - Realized */}
+          {pathDRealizado && <path d={pathDRealizado} fill="none" stroke="#06b6d4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ filter: 'drop-shadow(0px 0px 6px rgba(6,182,212,0.4))' }} />}
 
           {/* S-Curve Data Nodes */}
           {svgPoints.map((p, index) => (
             <g key={index}>
-              <circle cx={p.x} cy={p.y} r="5" fill="#06b6d4" stroke="#090d16" strokeWidth="2" />
-              <text x={p.x} y={p.y - 10} fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{p.label}</text>
+              <circle cx={p.x} cy={p.yEsperado} r="3" fill="#f59e0b" style={{ opacity: 0.6 }} />
+              <circle cx={p.x} cy={p.yRealizado} r="5" fill="#06b6d4" stroke="#090d16" strokeWidth="2" />
+              <text x={p.x} y={p.yRealizado - 10} fill="#ffffff" fontSize="10" fontWeight="bold" textAnchor="middle">{p.labelRealizado}</text>
               {/* Vertical label line */}
-              <line x1={p.x} y1={p.y + 4} x2={p.x} y2={height - padding} stroke="rgba(255,255,255,0.03)" />
+              <line x1={p.x} y1={p.yRealizado + 4} x2={p.x} y2={height - padding} stroke="rgba(255,255,255,0.03)" />
               {/* Date label */}
               <text x={p.x} y={height - padding + 15} fill="#94a3b8" fontSize="8" textAnchor="middle" transform={`rotate(15, ${p.x}, ${height - padding + 15})`}>
                 {p.week.split('-').slice(1).reverse().join('/')}
@@ -2809,6 +2995,10 @@ Assistente IA:`;
             <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#06b6d4' }}></span>
             <span>Avanço Realizado (%)</span>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', border: '2px dashed #f59e0b', opacity: 0.8 }}></span>
+            <span>Avanço Esperado Linear (%)</span>
+          </div>
         </div>
 
         {/* Weekly Divisions comparison list */}
@@ -2819,25 +3009,8 @@ Assistente IA:`;
           </h4>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {sCurveData.map((d, index) => {
-              const proj = (viewOnlyProject && viewOnlyProject.id === sCurveProjId) 
-                ? viewOnlyProject 
-                : projects.find(p => p.project_id === sCurveProjId);
-              
-              let expectedProgress = 0;
-              if (proj) {
-                const start = new Date(proj.start_date).getTime();
-                const end = new Date(proj.deadline_date).getTime();
-                const target = new Date(d.week).getTime();
-                const totalDur = end - start;
-                if (totalDur > 0) {
-                  const elap = target - start;
-                  expectedProgress = elap <= 0 ? 0 : Math.min(100, Math.round((elap / totalDur) * 100));
-                } else {
-                  expectedProgress = 100;
-                }
-              }
-
+            {svgPoints.map((d, index) => {
+              const expectedProgress = d.expectedProgress;
               const isAheadOrOnTime = d.progress >= expectedProgress;
 
               return (
@@ -2962,7 +3135,7 @@ Assistente IA:`;
     }
 
     const completedCount = viewOnlyPhases.filter(p => p.progress_percent === 100).length;
-    const progressPercent = Math.round((completedCount / 20) * 100);
+    const progressPercent = viewOnlyProject.overall_progress_percent || 0;
     const aiEstText = projectForecast[viewOnlyProject.id];
 
     const startDateObj = new Date(viewOnlyProject.start_date);
@@ -3049,7 +3222,7 @@ Assistente IA:`;
                   {viewOnlyPhases.map((phase, index) => {
                     const phaseDate = new Date(startDateObj);
                     const totalDays = Math.max(1, (deadlineDateObj - startDateObj) / (1000 * 60 * 60 * 24));
-                    const phaseCount = viewOnlyPhases.length || 20;
+                    const phaseCount = 26;
                     const daysPerPhase = totalDays / phaseCount;
                     
                     phaseDate.setDate(phaseDate.getDate() + Math.round(daysPerPhase * (index + 1)));
@@ -3141,7 +3314,7 @@ Assistente IA:`;
             </div>
             <div style={{ width: '1px', height: '50px', background: 'rgba(255,255,255,0.1)' }}></div>
             <div>
-              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/20</span></h3>
+              <h3 style={{ fontSize: '2rem', fontWeight: 700, color: '#e2e8f0', margin: '0 0 4px' }}>{completedCount}<span style={{ fontSize: '1rem', color: '#64748b' }}>/26</span></h3>
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Fases Concluídas</p>
             </div>
           </div>
@@ -3599,7 +3772,8 @@ Assistente IA:`;
               <div className="domino-five-grid">
               {(() => {
                 const completedPhases = projectPhases.filter(p => p.progress_percent === 100).length;
-                const activePhase = projectPhases.filter(p => p.started && p.progress_percent < 100).sort((a,b) => b.progress_percent - a.progress_percent)[0] || projectPhases[0];
+                const startedPhases = [...projectPhases].filter(p => p.started).sort((a, b) => (b.phases?.phase_number || 0) - (a.phases?.phase_number || 0));
+                const activePhase = startedPhases[0];
                 const lastLogDate = projectLogs[0] ? new Date(projectLogs[0].changed_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Sem atualizações';
                 const resolvedIssues = projectIssues.filter(i => i.status === 'Resolvido').length;
                 const totalIssues = projectIssues.length;
@@ -3610,7 +3784,7 @@ Assistente IA:`;
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4' }}>
                         <Activity size={20} /> <h3 style={{ margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Fases da Obra</h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem' }}>Concluídas: <strong style={{ color: '#fff' }}>{completedPhases} / {projectPhases.length || 20}</strong></p>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem' }}>Concluídas: <strong style={{ color: '#fff' }}>{completedPhases} / 26</strong></p>
                     </div>
                     
                     <div onClick={() => setProjectSubTab('report')} className="cascade-card" style={{ padding: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #10b981', justifyContent: 'center' }}>
@@ -3888,10 +4062,11 @@ Assistente IA:`;
                 const totalProjects = projects.length;
                 const avgProductivity = projects.length > 0 ? Math.round(projects.reduce((acc, p) => acc + p.overall_progress_percent, 0) / projects.length) : 0;
                 const endingThisMonth = projects.filter(p => {
-                  if (!p.deadline_date) return false;
+                  if (!p.deadline_date || p.overall_progress_percent === 100) return false;
                   const d = new Date(p.deadline_date);
                   return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
                 }).length;
+                const deliveredTotal = projects.filter(p => p.overall_progress_percent === 100).length;
 
                 const handleOpenGoogleEarth = (e) => {
                   e.stopPropagation();
@@ -3967,13 +4142,33 @@ Assistente IA:`;
                   }
                 };
 
+                const projectsReadyForAdjustment = projects.filter(p => p.montagem_concluida === true);
+                const projectsInAdjustment = projectsReadyForAdjustment.filter(p => p.adjustment_status === 'in_progress');
+                const delayedProjectsCount = projects.filter(p => p.is_delayed).length;
+
                 return (
                   <>
                     <div onClick={() => setActiveTab('projects')} style={{...cardStyle, borderTop: '4px solid #06b6d4'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🏗️ Elevadores em Montagem</h3>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          🏗️ Elevadores em Montagem
+                        </h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Total em andamento: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{totalProjects}</strong></p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                        <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Total em andamento: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{projects.length}</strong></p>
+                        {delayedProjectsCount > 0 && (
+                          <span style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600 }}>
+                            ⚠️ {delayedProjectsCount} em atraso
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div onClick={() => setActiveTab('adjustments')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🔧 Elevadores para Ajustes</h3>
+                      </div>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Em ajuste: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{projectsInAdjustment.length}/{projectsReadyForAdjustment.length}</strong></p>
                     </div>
 
                     <div onClick={() => setActiveTab('s-curve')} style={{...cardStyle, borderTop: '4px solid #8b5cf6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
@@ -3994,6 +4189,7 @@ Assistente IA:`;
                         <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🎯 Previsões de Entrega</h3>
                       </div>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Encerram neste mês: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{endingThisMonth}</strong></p>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Concluídos/Entregues: <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>{deliveredTotal}</strong></p>
                     </div>
 
                     <div onClick={() => setActiveTab('teams')} style={{...cardStyle, borderTop: '4px solid #10b981'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
@@ -4116,13 +4312,29 @@ Assistente IA:`;
 
           {/* Projects view */}
           {activeTab === 'projects' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Status:</span>
+                  <select
+                    className="form-control"
+                    style={{ fontSize: '0.85rem', padding: '6px 12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+                    value={projectStatusFilter}
+                    onChange={e => setProjectStatusFilter(e.target.value)}
+                  >
+                    <option value="all">Todas as Obras</option>
+                    <option value="assembly">Em Montagem / Ajuste</option>
+                    <option value="delivered">Entregues ao Cliente</option>
+                  </select>
+                </div>
+              </div>
             <div
               style={{
                 display: 'flex',
                 flexWrap: 'wrap',
                 gap: '16px',
                 justifyContent: 'center',
-                alignItems: 'flex-start',
+                alignItems: 'stretch',
                 width: '100%',
               }}
               className="animate-fade-in"
@@ -4134,102 +4346,109 @@ Assistente IA:`;
                   <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '8px' }}>Use o botão <strong style={{ color: '#06b6d4' }}>🛗 Assistente IA</strong> ou o botão <strong style={{ color: '#06b6d4' }}>+ Novo Cadastro</strong> nos cantos inferiores para começar.</p>
                 </div>
               ) : (
-                projects.map((proj) => (
-                  <div key={proj.project_id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px', border: proj.is_delayed ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--border-color)', width: '340px', flexShrink: 0, flexGrow: 0 }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>{proj.project_name}</h3>
-                        <span style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'rgba(6,182,212,0.1)', borderRadius: '4px', border: '1px solid rgba(6,182,212,0.2)' }}>
+                (() => {
+                  const renderProjectCard = (proj) => (
+                  <div key={proj.project_id} className="glass-panel animate-fade-in project-card-hover" style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: '100%', gap: '16px', border: proj.is_delayed ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--border-color)', width: '340px', flexShrink: 0, flexGrow: 0, boxShadow: proj.is_delayed ? '0 0 15px rgba(239, 68, 68, 0.15)' : 'none' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0, paddingRight: '8px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ color: '#fff', wordBreak: 'break-word' }}>{proj.building_name || proj.project_name}</span>
+                          {proj.building_name && proj.building_name !== proj.project_name && (
+                            <span style={{ color: '#06b6d4', fontSize: '0.85rem', fontWeight: 400 }}>Identificação: {proj.project_name}</span>
+                          )}
+                        </h3>
+                        <span style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'rgba(6,182,212,0.1)', borderRadius: '4px', border: '1px solid rgba(6,182,212,0.2)', flexShrink: 0 }}>
                           {proj.elevator_model}
                         </span>
                       </div>
-                      
-                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Building size={14} /> Empresa Contratada: {proj.company_name || 'Sem empresa'}
-                      </p>
-                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                        <Users size={14} /> Equipe: {proj.team_name || 'Sem equipe'}
-                      </p>
-                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                        <HardHat size={14} style={{ color: '#06b6d4' }} /> Técnico Responsável: {proj.technician_name || 'Não definido'}
-                      </p>
-                      <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                        <Bell size={14} style={{ color: proj.notification_frequency === 'disabled' ? '#64748b' : '#10b981' }} /> 
-                        Lembretes Telegram: <strong style={{ color: proj.notification_frequency === 'disabled' ? '#64748b' : '#06b6d4' }}>
-                          {proj.notification_frequency === 'daily' && 'Diário'}
-                          {proj.notification_frequency === 'weekly' && 'Semanal'}
-                          {proj.notification_frequency === 'monthly' && 'Mensal'}
-                          {proj.notification_frequency === 'disabled' && 'Desativado'}
-                          {!proj.notification_frequency && 'Semanal'}
-                        </strong>
-                      </p>
 
-                      {proj.tipo_elevador && (
-                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                          <Settings size={14} /> Tipo: {proj.tipo_elevador.charAt(0).toUpperCase() + proj.tipo_elevador.slice(1)}
-                        </p>
-                      )}
-                      {(proj.numero_paradas || proj.capacidade_pessoas) && (
-                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                          <Activity size={14} /> Paradas / Cap.: {proj.numero_paradas || '-'} {proj.numero_paradas ? 'paradas' : ''} / {proj.capacidade_pessoas || '-'} pes.
-                        </p>
-                      )}
-                      {proj.endereco && (
-                        <p style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                          <Flag size={14} /> Endereço: 
-                          <a 
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(proj.endereco)}`} 
-                            target="_blank" 
-                            rel="noreferrer"
-                            style={{ color: '#06b6d4', textDecoration: 'none' }}
-                          >
-                            Abrir Maps
-                          </a>
-                        </p>
-                      )}
-                      
-                      {/* Progress Metrics (Realizado vs Esperado) */}
-                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        {/* Realizado */}
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
-                            <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <CheckCircle size={12} style={{ color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }} />
-                              Realizado:
-                            </span>
-                            <span style={{ fontWeight: 700, color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }}>{proj.overall_progress_percent}%</span>
-                          </div>
-                          <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${proj.overall_progress_percent}%`, height: '100%', backgroundColor: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4', borderRadius: '3px' }}></div>
-                          </div>
+                      {/* Progresso Resumido (Sempre Visível) */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                          <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <CheckCircle size={12} style={{ color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }} />
+                            Realizado:
+                          </span>
+                          <span style={{ fontWeight: 700, color: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4' }}>{proj.overall_progress_percent}%</span>
                         </div>
-
-                        {/* Esperado (Linear) */}
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
-                            <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <TrendingUp size={12} style={{ color: '#f59e0b' }} />
-                              Esperado (Linear):
-                            </span>
-                            <span style={{ fontWeight: 700, color: '#f59e0b' }}>{proj.expected_linear_progress}%</span>
-                          </div>
-                          <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${proj.expected_linear_progress}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }}></div>
-                          </div>
+                        <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${proj.overall_progress_percent}%`, height: '100%', backgroundColor: proj.overall_progress_percent === 100 ? '#10b981' : '#06b6d4', borderRadius: '3px' }}></div>
                         </div>
                       </div>
 
-                      {/* Deadlines */}
-                      <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          <span>Decorridos: <strong>{proj.days_elapsed}d (~{(proj.days_elapsed / 7).toFixed(1)} sem)</strong></span>
-                          <span>Restantes: <strong>{proj.days_remaining}d (~{(proj.days_remaining / 7).toFixed(1)} sem)</strong></span>
+                      {/* Informações Secundárias (Visíveis apenas no hover) */}
+                      <div className="project-card-details">
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={proj.company_name || 'Sem empresa'}>
+                            <Building size={14} style={{ flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{proj.company_name || 'Sem empresa'}</span>
+                          </p>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={proj.team_name || 'Sem equipe'}>
+                            <Users size={14} style={{ flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{proj.team_name || 'Sem equipe'}</span>
+                          </p>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={proj.technician_name || 'Não definido'}>
+                            <HardHat size={14} style={{ color: '#06b6d4', flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{proj.technician_name || 'Não definido'}</span>
+                          </p>
+                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title="Lembretes Telegram">
+                            <Bell size={14} style={{ color: proj.notification_frequency === 'disabled' ? '#64748b' : '#10b981', flexShrink: 0 }} /> 
+                            <strong style={{ color: proj.notification_frequency === 'disabled' ? '#64748b' : '#06b6d4', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {proj.notification_frequency === 'daily' ? 'Diário' : proj.notification_frequency === 'monthly' ? 'Mensal' : proj.notification_frequency === 'disabled' ? 'Desativado' : 'Semanal'}
+                            </strong>
+                          </p>
+                          {proj.tipo_elevador && (
+                            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <Settings size={14} style={{ flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{proj.tipo_elevador.charAt(0).toUpperCase() + proj.tipo_elevador.slice(1)}</span>
+                            </p>
+                          )}
+                          {(proj.numero_paradas || proj.capacidade_pessoas) && (
+                            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <Activity size={14} style={{ flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{proj.numero_paradas || '-'} p. / {proj.capacidade_pessoas || '-'} pes.</span>
+                            </p>
+                          )}
                         </div>
-                        {proj.is_delayed ? (
-                          <span style={{ color: '#ef4444', fontWeight: 700, background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>Atraso</span>
-                        ) : (
-                          <span style={{ color: '#10b981', fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Prazo OK</span>
+                        
+                        {proj.endereco && (
+                          <p style={{ margin: '0 0 16px 0', color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Flag size={14} style={{ flexShrink: 0 }} /> 
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Endereço:</span>
+                            <a 
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(proj.endereco)}`} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              style={{ color: '#06b6d4', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            >
+                              Abrir Maps
+                            </a>
+                          </p>
                         )}
+                        
+                        {/* Esperado (Linear) e Prazos */}
+                        <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                              <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <TrendingUp size={12} style={{ color: '#f59e0b' }} />
+                                Esperado (Linear):
+                              </span>
+                              <span style={{ fontWeight: 700, color: '#f59e0b' }}>{proj.expected_linear_progress}%</span>
+                            </div>
+                            <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${proj.expected_linear_progress}%`, height: '100%', backgroundColor: '#f59e0b', borderRadius: '3px' }}></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Deadlines */}
+                        <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#94a3b8' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span>Decorridos: <strong>{proj.days_elapsed}d (~{(proj.days_elapsed / 7).toFixed(1)} sem)</strong></span>
+                            <span>Restantes: <strong>{proj.days_remaining}d (~{(proj.days_remaining / 7).toFixed(1)} sem)</strong></span>
+                          </div>
+                          {proj.is_delayed ? (
+                            <span style={{ color: '#ef4444', fontWeight: 700, background: 'rgba(239, 68, 68, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>Atraso</span>
+                          ) : (
+                            <span style={{ color: '#10b981', fontWeight: 700, background: 'rgba(16, 185, 129, 0.1)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Prazo OK</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -4258,6 +4477,205 @@ Assistente IA:`;
                         </div>
                       )}
                     </div>
+                  </div>
+                  );
+                  
+                  const grouped = {};
+                  const ungrouped = [];
+                  const filteredProjectsForDisplay = projects.filter(p => {
+                    if (projectStatusFilter === 'delivered') return p.overall_progress_percent === 100;
+                    if (projectStatusFilter === 'assembly') return p.overall_progress_percent < 100;
+                    return true;
+                  });
+
+                  filteredProjectsForDisplay.forEach(p => {
+                    if (p.contract_number) {
+                      if (!grouped[p.contract_number]) grouped[p.contract_number] = [];
+                      grouped[p.contract_number].push(p);
+                    } else {
+                      ungrouped.push(p);
+                    }
+                  });
+
+                  return (
+                    <>
+                      {Object.entries(grouped).map(([contractNum, projs]) => {
+                        if (projs.length === 1) {
+                          return renderProjectCard(projs[0]);
+                        }
+                        const buildingName = projs[0].building_name || 'Empreendimento Múltiplo';
+                        const isExpanded = expandedContracts[contractNum];
+                        const avgProgress = Math.round(projs.reduce((acc, p) => acc + p.overall_progress_percent, 0) / projs.length);
+                        
+                        const groupCard = (
+                          <div key={`group-card-${contractNum}`} className="glass-panel animate-fade-in" style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: '100%', gap: '16px', border: '1px solid rgba(6,182,212,0.5)', width: '340px', flexShrink: 0, flexGrow: 0, background: 'linear-gradient(135deg, rgba(6,182,212,0.1) 0%, rgba(20,184,166,0.05) 100%)', boxShadow: 'inset 0 0 20px rgba(6,182,212,0.05)' }}>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>{buildingName}</h3>
+                                <span style={{ fontSize: '0.75rem', padding: '2px 8px', background: 'rgba(6,182,212,0.1)', borderRadius: '4px', border: '1px solid rgba(6,182,212,0.2)' }}>
+                                  Contrato
+                                </span>
+                              </div>
+                              
+                              <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Building size={14} /> Nº do Contrato: <strong style={{ color: '#fff' }}>{contractNum}</strong>
+                              </p>
+                              <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Activity size={14} /> Total de Obras: <strong style={{ color: '#fff' }}>{projs.length} obras</strong>
+                              </p>
+
+                              <div style={{ marginTop: 'auto', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '4px' }}>
+                                    <span style={{ color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <CheckCircle size={12} style={{ color: '#06b6d4' }} />
+                                      Progresso Médio:
+                                    </span>
+                                    <span style={{ fontWeight: 700, color: '#06b6d4' }}>{avgProgress}%</span>
+                                  </div>
+                                  <div style={{ height: '6px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                                    <div style={{ width: `${avgProgress}%`, height: '100%', backgroundColor: '#06b6d4', borderRadius: '3px' }}></div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <button 
+                                onClick={() => setExpandedContracts(prev => ({ ...prev, [contractNum]: !prev[contractNum] }))}
+                                className="btn btn-primary" style={{ width: '100%', padding: '10px 16px', fontSize: '0.85rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}
+                              >
+                                {isExpanded ? <><ChevronDown size={16}/> Ocultar Elevadores</> : <><ChevronRight size={16}/> Ver {projs.length} Elevadores</>}
+                              </button>
+                            </div>
+                          </div>
+                        );
+
+                        if (isExpanded) {
+                          return [
+                            groupCard,
+                            ...projs.map(p => (
+                              <div key={`wrap-${p.project_id}`} className="animate-fade-in" style={{ position: 'relative' }}>
+                                {renderProjectCard(p)}
+                              </div>
+                            ))
+                          ];
+                        }
+                        return groupCard;
+                      })}
+                      {ungrouped.map(p => renderProjectCard(p))}
+                      {filteredProjectsForDisplay.length === 0 && projects.length > 0 && (
+                        <div style={{ width: '100%', textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+                          Nenhuma obra corresponde ao filtro selecionado.
+                        </div>
+                      )}
+                    </>
+                  );
+                })()
+              )}
+            </div>
+            </div>
+          )}
+
+          {/* Adjustments tab */}
+          {activeTab === 'adjustments' && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center', alignItems: 'flex-start', width: '100%' }} className="animate-fade-in">
+              {projects.filter(p => p.montagem_concluida === true).length === 0 ? (
+                <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', width: '100%', maxWidth: '520px' }}>
+                  <AlertTriangle style={{ color: '#f59e0b', marginBottom: '12px' }} size={32} />
+                  <h4 style={{ color: '#ffffff' }}>Nenhum elevador pronto para ajuste</h4>
+                </div>
+              ) : (
+                projects.filter(p => p.montagem_concluida === true).map(proj => (
+                  <div key={proj.project_id} className="glass-panel" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', width: '400px', border: '1px solid #f59e0b' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <h4 style={{ margin: 0, color: '#fff' }}>{proj.project_name}</h4>
+                      <span className={`status-badge status-${proj.adjustment_status === 'in_progress' ? 'active' : proj.adjustment_status === 'completed' ? 'completed' : 'planning'}`}>
+                        {proj.adjustment_status === 'in_progress' ? 'Em Ajuste' : proj.adjustment_status === 'completed' ? 'Concluído' : 'Pendente'}
+                      </span>
+                    </div>
+                    
+                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>
+                      Modelo: {proj.elevator_model}
+                      {proj.ajustador_name && <><br/>Ajustador: <strong style={{ color: '#06b6d4' }}>{proj.ajustador_name}</strong></>}
+                    </p>
+
+                    <button className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '6px' }} onClick={() => {
+                        setActiveTab('projects');
+                        setActiveProject(proj); 
+                        setProjectSubTab('menu'); 
+                        fetchProjectPhases(proj.project_id); 
+                        fetchProjectAuditLogs(proj.project_id); 
+                        fetchProjectIssues(proj.project_id); 
+                    }}>
+                      📊 Acessar Dashboard da Obra
+                    </button>
+                    
+                    {proj.pendencias && (
+                      <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '8px', borderRadius: '4px', borderLeft: '2px solid #ef4444' }}>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#fca5a5' }}><strong>Pendências:</strong> {proj.pendencias}</p>
+                      </div>
+                    )}
+
+                    {proj.adjustment_status === 'pending' && (userProfile?.role === 'ajustador' || userProfile?.role === 'master' || userProfile?.role === 'manager') && (
+                      <button className="btn btn-primary" onClick={() => handleStartAdjustment(proj.project_id)} style={{ marginTop: 'auto', background: '#f59e0b', color: '#000', fontWeight: 'bold' }}>
+                        🚀 Iniciar Ajuste
+                      </button>
+                    )}
+
+                    {proj.adjustment_status === 'in_progress' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                        <h5 style={{ margin: 0, color: '#06b6d4' }}>Fases de Ajuste:</h5>
+                        {adjustmentPhasesList.map(phase => {
+                          const prog = allAdjustmentsProgress.find(p => p.project_id === proj.project_id && p.phase_id === phase.id);
+                          const progressVal = prog ? prog.progress_percent : 0;
+                          return (
+                            <div key={phase.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', background: 'rgba(255,255,255,0.05)', padding: '6px 8px', borderRadius: '4px' }}>
+                              <span style={{ color: '#fff', width: '70%' }}>{phase.phase_number}. {phase.name}</span>
+                              <select 
+                                value={progressVal}
+                                onChange={(e) => handleUpdateAdjustmentPhase(proj.project_id, phase.id, true, e.target.value)}
+                                style={{ background: '#1e293b', color: '#fff', border: '1px solid #334155', padding: '4px', borderRadius: '4px' }}
+                                disabled={userProfile?.role !== 'ajustador' && userProfile?.role !== 'master' && userProfile?.role !== 'manager'}
+                              >
+                                <option value="0">0%</option>
+                                <option value="25">25%</option>
+                                <option value="50">50%</option>
+                                <option value="75">75%</option>
+                                <option value="100">100%</option>
+                              </select>
+                            </div>
+                          );
+                        })}
+                        
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          <button className="btn btn-secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '6px' }} onClick={() => {
+                            const pend = window.prompt('Digite as pendências:', proj.pendencias || '');
+                            if (pend !== null) handleUpdatePendencias(proj.project_id, pend);
+                          }}>
+                            Editar Pendências
+                          </button>
+                          
+                          <button className="btn" style={{ flex: 1, fontSize: '0.8rem', padding: '6px', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.5)', color: '#fca5a5' }} onClick={() => handleCancelAdjustment(proj.project_id)}>
+                            Cancelar Ajuste
+                          </button>
+                        </div>
+                        
+                        <div style={{ marginTop: '8px' }}>
+                          {adjustmentPhasesList.length > 0 && adjustmentPhasesList.every(phase => {
+                            const prog = allAdjustmentsProgress.find(p => p.project_id === proj.project_id && p.phase_id === phase.id);
+                            return prog && prog.progress_percent === 100;
+                          }) && (
+                            <button className="btn btn-primary" style={{ width: '100%', background: '#10b981', color: '#fff' }} onClick={async () => {
+                              const { error } = await supabase.from('projects').update({ adjustment_status: 'completed', status: 'completed' }).eq('id', proj.project_id);
+                              if (error) showToast('Erro', 'danger'); else fetchDashboardData();
+                            }}>
+                              Concluir Obra e Entregar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -4809,10 +5227,13 @@ Assistente IA:`;
 
             // Filter rankings
             const filteredRankings = pendingRankings.filter(rank => {
-              if (rankingMonthFilter === 'all') return true;
-              
               const proj = projects.find(p => p.project_id === rank.project_id);
               if (!proj) return false;
+              
+              if (rankingStatusFilter === 'delivered' && proj.overall_progress_percent !== 100) return false;
+              if (rankingStatusFilter === 'assembly' && proj.overall_progress_percent === 100) return false;
+
+              if (rankingMonthFilter === 'all') return true;
               
               const est = getProjectLinearEstimate(proj);
               if (!est.date) return false;
@@ -4836,10 +5257,20 @@ Assistente IA:`;
                   🎯 Previsões de Entrega
                 </h3>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }} className="no-print">
-                  <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
-                    Elevadores ordenados por volume de pendências, fases incompletas e previsão de conclusão.
-                  </p>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Status:</span>
+                    <select
+                      className="form-control"
+                      style={{ fontSize: '0.8rem', padding: '4px 12px', width: 'auto', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', height: 'auto' }}
+                      value={rankingStatusFilter}
+                      onChange={e => setRankingStatusFilter(e.target.value)}
+                    >
+                      <option value="all">Todas as Obras</option>
+                      <option value="assembly">Em Montagem / Ajuste</option>
+                      <option value="delivered">Entregues ao Cliente</option>
+                    </select>
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Filtrar Conclusão por Mês:</span>
                     <select
@@ -5283,6 +5714,12 @@ Assistente IA:`;
                 >
                   Nova Empresa Contratada
                 </button>
+                <button 
+                  onClick={() => setRegSubTab('ajustador')} 
+                  style={{ background: 'none', border: 'none', padding: '8px 16px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, color: regSubTab === 'ajustador' ? '#06b6d4' : '#94a3b8', borderBottom: regSubTab === 'ajustador' ? '2px solid #06b6d4' : 'none' }}
+                >
+                  Novo Ajustador
+                </button>
                 {userProfile?.role === 'master' && (
                   <button 
                     onClick={() => setRegSubTab('manager')} 
@@ -5300,6 +5737,18 @@ Assistente IA:`;
                   <div>
                     <label>Identificação / Nome da Obra</label>
                     <input type="text" value={newProjName} onChange={e => setNewProjName(e.target.value)} required placeholder="Ex: Shopping Iguatemi - Elevador 1" />
+                  </div>
+                  <div>
+                    <label>Nome do Empreendimento</label>
+                    <input type="text" value={newProjBuildingName} onChange={e => setNewProjBuildingName(e.target.value)} placeholder="Ex: Shopping Iguatemi" />
+                  </div>
+                  <div>
+                    <label>Número do Contrato</label>
+                    <input type="text" value={newProjContractNumber} onChange={e => setNewProjContractNumber(e.target.value)} placeholder="Ex: CT-2023-001" />
+                  </div>
+                  <div>
+                    <label>E-mails do Cliente (separados por vírgula)</label>
+                    <input type="text" value={newProjClientEmails} onChange={e => setNewProjClientEmails(e.target.value)} placeholder="Ex: cliente@email.com, sindico@email.com" />
                   </div>
                   <div>
                     <label>Modelo do Elevador</label>
@@ -5490,6 +5939,25 @@ Assistente IA:`;
                     </select>
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Técnico</button>
+                </form>
+              )}
+
+              {regSubTab === 'ajustador' && (
+                <form onSubmit={handleCreateAjustador} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '600px' }}>
+                  <h4 style={{ marginBottom: '8px' }}>Adicionar Ajustador (Acesso aos Ajustes)</h4>
+                  <div>
+                    <label>Nome Completo do Ajustador</label>
+                    <input type="text" value={newAjustadorName} onChange={e => setNewAjustadorName(e.target.value)} required placeholder="Ex: Carlos Silva" />
+                  </div>
+                  <div>
+                    <label>E-mail (Login futuro ou contato)</label>
+                    <input type="email" value={newAjustadorEmail} onChange={e => setNewAjustadorEmail(e.target.value)} required placeholder="Ex: carlos@empresa.com" />
+                  </div>
+                  <div>
+                    <label>ID de Identificação (CPF/Matrícula)</label>
+                    <input type="text" value={newAjustadorId} onChange={e => setNewAjustadorId(e.target.value)} required placeholder="Ex: 12345" />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>Cadastrar Ajustador</button>
                 </form>
               )}
 

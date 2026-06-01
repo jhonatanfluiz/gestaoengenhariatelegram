@@ -43,8 +43,10 @@ CREATE TABLE public.profiles (
     full_name TEXT NOT NULL,
     telegram_chat_id TEXT UNIQUE,
     whatsapp_number TEXT UNIQUE,
-    role TEXT NOT NULL CHECK (role IN ('master', 'manager', 'technician')),
+    role TEXT NOT NULL CHECK (role IN ('master', 'manager', 'technician', 'ajustador')),
     access_level TEXT CHECK (access_level IN ('restricted', 'unrestricted')) DEFAULT 'restricted',
+    email TEXT,
+    identification_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -78,13 +80,16 @@ CREATE TABLE public.projects (
     deadline_date DATE NOT NULL DEFAULT (CURRENT_DATE + INTERVAL '60 days')::DATE, -- Padrão de 60 dias alterável
     status TEXT NOT NULL DEFAULT 'planning' CHECK (status IN ('planning', 'active', 'completed', 'delayed')),
     notification_frequency TEXT DEFAULT 'weekly' CHECK (notification_frequency IN ('daily', 'weekly', 'monthly', 'disabled')),
+    pendencias TEXT,
+    adjustment_status TEXT DEFAULT 'pending' CHECK (adjustment_status IN ('pending', 'in_progress', 'completed')),
+    adjusted_by_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Tabela Catálogo das 20 Fases Padrão (Populada estaticamente)
+-- Tabela Catálogo das 26 Fases (Montagem + Ajuste)
 CREATE TABLE public.phases (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    phase_number INT UNIQUE NOT NULL CHECK (phase_number >= 1 AND phase_number <= 20),
+    phase_number INT UNIQUE NOT NULL CHECK (phase_number >= 1 AND phase_number <= 26),
     name TEXT NOT NULL,
     description TEXT,
     weight INT DEFAULT 5
@@ -93,11 +98,11 @@ CREATE TABLE public.phases (
 -- Tabela de Progresso Real das Fases por Projeto
 CREATE TABLE public.project_phases_progress (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE NOT NULL,
-    phase_id UUID REFERENCES public.phases(id) ON DELETE CASCADE NOT NULL,
-    started BOOLEAN NOT NULL DEFAULT false,
-    progress_percent INT NOT NULL DEFAULT 0 CHECK (progress_percent IN (0, 25, 50, 75, 100)),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    project_id UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+    phase_id UUID REFERENCES public.phases(id) ON DELETE CASCADE,
+    started BOOLEAN DEFAULT false,
+    progress_percent INT DEFAULT 0 CHECK (progress_percent IN (0, 25, 50, 75, 100)),
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     UNIQUE(project_id, phase_id)
 );
 
@@ -149,33 +154,36 @@ CREATE TABLE public.bot_sessions (
 );
 
 -- =====================================================================
--- 2. POPULAR AS 20 FASES PADRÃO DE MONTAGEM DE ELEVADORES
+-- 2. POPULAR AS FASES DE MONTAGEM E AJUSTE
 -- =====================================================================
 INSERT INTO public.phases (phase_number, name, description, weight) VALUES
-(1, 'Mobilização da equipe', 'Chegada de equipe, EPIs, e ferramentas na obra.', 2),
-(2, 'Conferência da prumada', 'Verificação das dimensões e alinhamento do poço.', 3),
-(3, 'Liberação do poço', 'Inspeção física, limpeza e checagem de infiltrações no fundo do poço.', 3),
-(4, 'Instalação de andaimes e proteção', 'Montagem das estruturas auxiliares de segurança no poço.', 4),
-(5, 'Instalação das guias da cabine', 'Montagem e fixação dos trilhos que guiarão a cabine.', 8),
-(6, 'Instalação das guias do contrapeso', 'Montagem e fixação dos trilhos que guiarão o contrapeso.', 6),
-(7, 'Montagem da máquina de tração', 'Fixação do motor de tração no topo do poço ou casa de máquinas.', 10),
-(8, 'Instalação da base da máquina', 'Montagem da base metálica/apoios que sustentam a máquina.', 5),
-(9, 'Instalação do limitador de velocidade e sistema de tração', 'Fixação do sistema mecânico de segurança contra queda livre, instalação dos cabos de aços e tirantes cabine/contrapeso.', 4),
-(10, 'Instalação do quadro de comando', 'Fixação física do painel elétrico principal de controle.', 6),
-(11, 'Passagem de chicotes e cabeamentos', 'Instalação da fiação do poço, botoeiras e sensores.', 8),
-(12, 'Montagem da cabine', 'Montagem do piso, teto, e painéis de parede da cabine do elevador.', 10),
-(13, 'Montagem do contrapeso', 'Montagem do chassi e preenchimento com blocos de peso.', 5),
-(14, 'Instalação das portas de pavimento', 'Fixação das portas automáticas em cada um dos andares.', 8),
-(15, 'Instalação das botoeiras e sinalizações', 'Montagem dos painéis de chamada externos e displays.', 3),
-(16, 'Instalação do operador de portas', 'Acoplamento do motor que abre a porta na cabine.', 4),
-(17, 'Ajustes elétricos e parametrizações', 'Configuração inicial do inversor e lógica do quadro.', 5),
-(18, 'Testes operacionais', 'Movimentação do elevador em velocidade reduzida de inspeção.', 3),
-(19, 'Ajustes finais e acabamento', 'Polimento de guias, ajustes de nivelamento e barulho.', 2),
-(20, 'Entrega técnica ao cliente', 'Realização de testes de segurança finais e liberação para uso comercial.', 1)
-ON CONFLICT (phase_number) DO UPDATE SET 
-    name = EXCLUDED.name,
-    description = EXCLUDED.description,
-    weight = EXCLUDED.weight;
+(1, 'Mobilização da equipe', 'Reuniões, alocação de equipe e preparação do canteiro.', 2),
+(2, 'Conferência da prumada', 'Verificação do prumo das guias e alinhamento.', 2),
+(3, 'Instalação de andaimes, equipamentos de proteção e ferramentas de içamento', 'Montagem de segurança no fosso.', 2),
+(4, 'Instalação das guias da cabine', 'Fixação e alinhamento das guias principais da cabine.', 7),
+(5, 'Instalação das guias do contrapeso', 'Fixação das guias do sistema de contrapeso.', 5),
+(6, 'Montagem da máquina de tração', 'Posicionamento e fixação do motor/máquina.', 8),
+(7, 'Instalação da base da máquina', 'Preparação e chumbamento da base.', 4),
+(8, 'Instalação do limitador de velocidade e sistema de tração', 'Fixação do limitador e polias.', 3),
+(9, 'Instalação dos cabos de aço (tracionamento)', 'Lançamento e fixação dos cabos.', 3),
+(10, 'Instalação do quadro de comando', 'Fixação do quadro elétrico principal.', 5),
+(11, 'Passagem de chicotes e cabeamentos', 'Lançamento de cabos de manobra e poço.', 7),
+(12, 'Montagem da cabine', 'Estrutura, painéis e subteto da cabine.', 8),
+(13, 'Montagem do contrapeso', 'Armação e alocação dos pesos.', 4),
+(14, 'Instalação das portas de pavimento', 'Fixação dos marcos e folhas de porta nos andares.', 7),
+(15, 'Entregue para obra fazer os fechamentos de porta, instalação do piso e acabamentos civil', 'Liberação para alvenaria e piso.', 2),
+(16, 'Instalação das botoeiras e sinalizações', 'Painéis de chamada e indicadores.', 3),
+(17, 'Instalação do operador de portas', 'Montagem do motor de porta na cabine.', 4),
+(18, 'Limpeza geral e revisão de itens de responsabilidade civil', 'Limpeza final do poço e revisão civil.', 4),
+(19, 'Testes operacionais', 'Movimentação básica e testes de segurança.', 3),
+(20, 'Liberado para ajuste', 'Equipamento pronto para o time de comissionamento.', 2),
+(21, 'Preparação e Energização', 'Verificações elétricas iniciais e ligação segura do quadro.', 2),
+(22, 'Parametrização e Configuração', 'Ajuste de parâmetros do inversor e lógica de comando.', 3),
+(23, 'Testes Dinâmicos e de Segurança', 'Testes em velocidade normal, testes de freio, limitador e resgate.', 4),
+(24, 'Comissionamento, MAX e interfone', 'Configurações finais de telemetria, painel MAX e comunicação.', 3),
+(25, 'Inspeção Final e Limpeza', 'Verificação final, limpeza de fosso e cabine.', 2),
+(26, 'Elevador entregue ao cliente', 'Assinatura do termo de entrega e repasse definitivo.', 1)
+ON CONFLICT (phase_number) DO NOTHING;
 
 -- =====================================================================
 -- 3. ÍNDICES PARA ALTA PERFORMANCE
@@ -201,6 +209,14 @@ WITH project_calculations AS (
         p.start_date,
         p.deadline_date,
         p.status AS current_status,
+        p.contract_number,
+        p.endereco,
+        p.building_name,
+        p.client_emails,
+        p.capacidade_pessoas,
+        p.numero_paradas,
+        p.tipo_elevador,
+        p.senha_cliente,
         -- Total de dias corridos do projeto
         (p.deadline_date - p.start_date) AS total_duration_days,
         -- Dias decorridos até hoje
@@ -208,11 +224,13 @@ WITH project_calculations AS (
         -- Dias restantes
         GREATEST(0, p.deadline_date - CURRENT_DATE) AS days_remaining,
         -- Cálculo ponderado do progresso real (PFP %)
-        COALESCE(ROUND(SUM((pp.progress_percent::decimal * ph.weight::decimal) / 100.0)), 0) AS overall_progress_percent
+        COALESCE(ROUND(SUM((pp.progress_percent::decimal * ph.weight::decimal) / 100.0)), 0) AS overall_progress_percent,
+        -- Verifica se montagem (fase 20) tá concluída
+        COALESCE(MAX(CASE WHEN ph.phase_number = 20 AND pp.progress_percent = 100 THEN 1 ELSE 0 END), 0)::BOOLEAN AS montagem_concluida
     FROM public.projects p
     LEFT JOIN public.project_phases_progress pp ON p.id = pp.project_id
     LEFT JOIN public.phases ph ON pp.phase_id = ph.id
-    GROUP BY p.id, p.name, p.start_date, p.deadline_date, p.status
+    GROUP BY p.id, p.name, p.start_date, p.deadline_date, p.status, p.contract_number, p.endereco, p.building_name, p.client_emails, p.capacidade_pessoas, p.numero_paradas, p.tipo_elevador, p.senha_cliente
 )
 SELECT 
     *,
@@ -238,18 +256,23 @@ SELECT
     t.name AS team_name,
     mgr.full_name AS manager_name,
     tech.full_name AS technician_name,
+    adj.full_name AS ajustador_name,
     proj.elevator_model,
     proj.assigned_technician_id,
     proj.company_id,
     proj.team_id,
     proj.assigned_manager_id,
-    proj.notification_frequency
+    proj.notification_frequency,
+    proj.adjustment_status,
+    proj.pendencias,
+    proj.adjusted_by_id
 FROM public.vw_project_metrics pm
 JOIN public.projects proj ON pm.project_id = proj.id
 LEFT JOIN public.companies c ON proj.company_id = c.id
 LEFT JOIN public.teams t ON proj.team_id = t.id
 LEFT JOIN public.profiles mgr ON proj.assigned_manager_id = mgr.id
-LEFT JOIN public.profiles tech ON proj.assigned_technician_id = tech.id;
+LEFT JOIN public.profiles tech ON proj.assigned_technician_id = tech.id
+LEFT JOIN public.profiles adj ON proj.adjusted_by_id = adj.id;
 
 -- View de Pendências e Ranking de Atrasos
 CREATE OR REPLACE VIEW public.vw_pending_ranking AS
@@ -384,6 +407,8 @@ ALTER TABLE public.weekly_answers_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.change_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bot_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mensagens_obra ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.adjustment_phases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_adjustment_progress ENABLE ROW LEVEL SECURITY;
 
 -- 1. Políticas Públicas de Visualização (Simplificadas para testes de MVP e Dashboard Web)
 CREATE POLICY "Leitura irrestrita para usuários autenticados" ON public.companies FOR SELECT USING (true);
@@ -406,9 +431,10 @@ CREATE POLICY "Modificação irrestrita de projetos" ON public.projects FOR ALL 
 CREATE POLICY "Modificação irrestrita de progresso" ON public.project_phases_progress FOR ALL USING (true);
 CREATE POLICY "Modificação de logs semanais" ON public.weekly_answers_log FOR ALL USING (true);
 CREATE POLICY "Modificação de logs de auditoria" ON public.change_logs FOR ALL USING (true);
-CREATE POLICY "Modificação de sessões do bot" ON public.bot_sessions FOR ALL USING (true);
-CREATE POLICY "Leitura irrestrita de mensagens_obra" ON public.mensagens_obra FOR SELECT USING (true);
-CREATE POLICY "Modificação irrestrita de mensagens_obra" ON public.mensagens_obra FOR ALL USING (true);
+CREATE POLICY "Allow all access to all users" ON public.bot_sessions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to all users" ON public.mensagens_obra FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow read access to all users" ON public.adjustment_phases FOR SELECT USING (true);
+CREATE POLICY "Allow all access to all users" ON public.project_adjustment_progress FOR ALL USING (true) WITH CHECK (true);
 
 -- =====================================================================
 -- 6.1 STORAGE BUCKETS

@@ -499,6 +499,201 @@ label {
 
   #root {
     padding-bottom: 90px;
+.bg-progress-p0 { background-color: rgba(71, 85, 105, 0.15); border-color: rgba(71, 85, 105, 0.3); }
+.bg-progress-p25 { background-color: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.3); }
+.bg-progress-p50 { background-color: rgba(2, 132, 199, 0.15); border-color: rgba(2, 132, 199, 0.3); }
+.bg-progress-p75 { background-color: rgba(79, 70, 229, 0.15); border-color: rgba(79, 70, 229, 0.3); }
+.bg-progress-p100 { background-color: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); }
+
+/* Modal overlay & content */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(4, 6, 10, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid var(--border-color-active);
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.7), var(--shadow-glow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Print and utility styles */
+.print-only {
+  display: none;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #0d1117 !important;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  header, nav, button, .btn, select, input, .no-print, .modal-content button, .modal-content select {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  
+  /* Modal Printing configurations */
+  body.printing-modal #root > div > *:not(.modal-overlay) {
+    display: none !important;
+  }
+  body:not(.printing-modal) .modal-overlay {
+    display: none !important;
+  }
+  body.printing-modal .modal-overlay {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    z-index: auto !important;
+  }
+  body.printing-modal .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  .glass-panel {
+    background: #ffffff !important;
+    color: #0d1117 !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin-bottom: 20px !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 15px;
+  }
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    text-align: left;
+    padding: 8px !important;
+    color: #0d1117 !important;
+    font-size: 0.85rem !important;
+  }
+  th {
+    background-color: #f1f5f9 !important;
+    font-weight: 700;
+  }
+  h1, h2, h3, h4, p, span, strong, td, th {
+    color: #0d1117 !important;
+  }
+  /* Force page breaks if needed */
+  .page-break {
+    page-break-after: always;
+  }
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Cascade layout styling and floating cards */
+.cascade-card {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Hover state for interactive cascade cards */
+.cascade-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(6, 182, 212, 0.4) !important;
+  box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(6, 182, 212, 0.15) !important;
+}
+
+/* Selected state for cascade cards */
+.cascade-card.selected {
+  border: 2px solid var(--color-primary) !important;
+  background: rgba(6, 182, 212, 0.08) !important;
+  box-shadow: 0 0 25px rgba(6, 182, 212, 0.3), inset 0 0 12px rgba(6, 182, 212, 0.05) !important;
+  transform: translateY(-2px) scale(1.02);
+}
+
+.cascade-card.selected:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 22px 35px -8px rgba(0, 0, 0, 0.5), 0 0 30px rgba(6, 182, 212, 0.45) !important;
+}
+
+/* Inactive state (dimmed because another card is selected) */
+.cascade-card.inactive {
+  opacity: 0.45;
+  filter: grayscale(20%);
+}
+
+.cascade-card.inactive:hover {
+  opacity: 0.85;
+  filter: none;
+}
+
+/* Technician specific cards */
+.cascade-card.technician-card {
+  cursor: default;
+  background: rgba(17, 25, 40, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.cascade-card.technician-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(16, 185, 129, 0.4) !important; /* Emerald green border for technician cards on hover */
+  box-shadow: 0 18px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.15) !important;
+}
+
+@media (max-width: 768px) {
+  body, html {
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  #root {
+    padding-bottom: 90px;
   }
 
   .mobile-hidden {
@@ -535,5 +730,49 @@ label {
   
   #fab-plus span, #fab-export span {
     display: none !important;
+  }
+
+  /* Fixes for cut-off content on iOS/Android */
+  table, .table-responsive {
+    display: block !important;
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    white-space: nowrap !important;
+  }
+
+  header {
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+    justify-content: center !important;
+  }
+
+  header > div {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .glass-panel {
+    padding: 16px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .modal-content {
+    width: 95% !important;
+    max-width: 100% !important;
+    padding: 16px !important;
+  }
+
+  /* Force grid containers to be single column */
+  div[style*="gridTemplateColumns"],
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Force flex containers to wrap */
+  div[style*="display: flex"] {
+    flex-wrap: wrap;
   }
 }

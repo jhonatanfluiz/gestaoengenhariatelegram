@@ -27,10 +27,13 @@ serve(async (req) => {
     }
 
     const candidates = [
+      { version: 'v1beta', model: 'gemini-2.5-flash' },
       { version: 'v1beta', model: 'gemini-2.0-flash' },
-      { version: 'v1', model: 'gemini-2.0-flash' },
+      { version: 'v1beta', model: 'gemini-1.5-flash-latest' },
+      { version: 'v1beta', model: 'gemini-1.5-pro-latest' },
+      { version: 'v1beta', model: 'gemini-1.5-flash' },
       { version: 'v1beta', model: 'gemini-1.5-pro' },
-      { version: 'v1beta', model: 'gemini-1.5-flash' }
+      { version: 'v1', model: 'gemini-pro' }
     ];
 
     let geminiResponse = null;

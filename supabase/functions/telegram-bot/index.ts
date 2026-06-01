@@ -224,68 +224,64 @@ Deno.serve(async (req) => {
 
       let sentCount = 0;
       if (projects && projects.length > 0) {
+        // Group by technician
+        const techProjects: Record<string, any[]> = {};
         for (const project of projects) {
-          if (!project.assigned_technician_id) {
-            log(`Project "${project.name}" has no assigned technician. Skipping.`);
-            continue;
+          if (!project.assigned_technician_id) continue;
+          if (!techProjects[project.assigned_technician_id]) {
+            techProjects[project.assigned_technician_id] = [];
           }
+          techProjects[project.assigned_technician_id].push(project);
+        }
 
+        for (const techId of Object.keys(techProjects)) {
+          const techProjs = techProjects[techId];
+          
           // Fetch technician profile
           const { data: techProfile, error: techErr } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', project.assigned_technician_id)
+            .eq('id', techId)
             .maybeSingle();
 
-          if (techErr || !techProfile) {
-            log(`Error fetching profile for tech ${project.assigned_technician_id} on project "${project.name}":`, techErr);
+          if (techErr || !techProfile || !techProfile.telegram_chat_id) {
+            log(`Skipping tech ${techId}: no profile or telegram_chat_id found.`);
             continue;
           }
 
-          if (!techProfile.telegram_chat_id) {
-            log(`Technician "${techProfile.full_name}" has no telegram_chat_id configured. Skipping.`);
-            continue;
+          const chatId = String(techProfile.telegram_chat_id);
+
+          if (techProjs.length === 1) {
+            const project = techProjs[0];
+            log(`Sending direct reminder to ${techProfile.full_name} (${chatId}) for project "${project.name}"`);
+            
+            await sendTelegram('sendMessage', {
+              chat_id: chatId,
+              text: `⏰ **Lembrete de Atualização**\n\nOlá, **${techProfile.full_name}**! Está na hora de atualizar o progresso da obra **${project.name}**.`,
+              parse_mode: 'Markdown',
+            }, log);
+            
+            await startProjectChecklist(chatId, project, techProfile.id, log);
+            sentCount++;
+          } else {
+            log(`Sending grouped reminder to ${techProfile.full_name} (${chatId}) for ${techProjs.length} projects`);
+            
+            const keyboard = techProjs.map(p => {
+              const btnText = `${p.name}${p.elevator_model ? ` - ${p.elevator_model}` : ''}`;
+              return [{ text: `🏗️ ${btnText}`, callback_data: `select_project:${p.id}` }];
+            });
+
+            await sendTelegram('sendMessage', {
+              chat_id: chatId,
+              text: `⏰ **Lembrete de Atualização!**\n\nOlá, **${techProfile.full_name}**! Você tem **${techProjs.length}** obras aguardando atualização de progresso.\n\nEscolha uma abaixo para iniciar:`,
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: keyboard
+              }
+            }, log);
+            
+            sentCount++;
           }
-
-          // Fetch phases progress for this project
-          const { data: phasesProgress, error: phaseErr } = await supabase
-            .from('project_phases_progress')
-            .select(`
-              *,
-              phases:phase_id (
-                id,
-                phase_number,
-                name
-              )
-            `)
-            .eq('project_id', project.id);
-
-          if (phaseErr || !phasesProgress || phasesProgress.length === 0) {
-            log(`Error fetching phase progress for project "${project.name}": ${phaseErr?.message || 'Empty'}`);
-            continue;
-          }
-
-          // Sort by phase number
-          const sortedPhases = phasesProgress.sort((a: any, b: any) => 
-            (a.phases?.phase_number || 0) - (b.phases?.phase_number || 0)
-          );
-
-          // Find first incomplete phase
-          const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[19];
-          const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 20;
-
-          log(`Sending reminder to ${techProfile.full_name} (${techProfile.telegram_chat_id}) for project "${project.name}", phase ${currentPhaseNum}`);
-
-          // Send an intro message
-          await sendTelegram('sendMessage', {
-            chat_id: String(techProfile.telegram_chat_id),
-            text: `⏰ **Lembrete de Atualização**\n\nOlá, **${techProfile.full_name}**! Está na hora de atualizar o progresso da obra **${project.name}**.`,
-            parse_mode: 'Markdown',
-          }, log);
-
-          // Trigger the question
-          await askPhaseQuestion(String(techProfile.telegram_chat_id), project.id, currentPhaseNum, techProfile.id, log);
-          sentCount++;
         }
       }
 
@@ -361,22 +357,27 @@ async function askPhaseQuestion(
 ) {
   log(`askPhaseQuestion called: chatId=${chatId}, projectId=${projectId}, phaseNum=${phaseNum}`);
 
-  if (phaseNum > 20) {
-    log('All 20 phases processed. Ending checklist session.');
+  if (phaseNum > 26) {
+    log('All 26 phases processed. Ending checklist session.');
 
     let aiMessage = '';
     try {
       const geminiKey = Deno.env.get('GEMINI_API_KEY');
       if (geminiKey) {
         log('Generating AI congratulatory/motivational message...');
-        // Fetch project details for context
-        const { data: projDetails } = await supabase
-          .from('projects')
+        // Fetch project metrics for context
+        const { data: projMetrics } = await supabase
+          .from('vw_project_metrics')
           .select('*')
-          .eq('id', projectId)
+          .eq('project_id', projectId)
           .single();
           
-        const promptText = `O técnico finalizou o checklist da obra "${projDetails?.name || 'Projeto'}". Escreva uma mensagem muito curta e amigável (máximo 2 parágrafos pequenos) parabenizando a equipe pela conclusão do checklist e motivando-os para os próximos passos. Se a evolução do projeto não for tão positiva, seja encorajador e motivacional. Se estiver no prazo ou adiantado, parabenize com entusiasmo. Assine como "Seu Assistente IA".`;
+        const isDelayed = projMetrics?.is_delayed;
+        const projectStatusContext = isDelayed 
+          ? "A obra está atualmente ATRASADA em relação ao cronograma." 
+          : "A obra está NO PRAZO em relação ao cronograma.";
+
+        const promptText = `O técnico finalizou o preenchimento do relatório da obra "${projMetrics?.project_name || 'Projeto'}". ${projectStatusContext}\n\nEscreva APENAS UMA mensagem curta e direta (máximo de 1 parágrafo).\n- Se a obra estiver ATRASADA: Envie UMA ÚNICA mensagem de encorajamento e motivação para a equipe recuperar o prazo.\n- Se a obra estiver NO PRAZO: Envie UMA ÚNICA mensagem parabenizando pelo excelente trabalho.\nNUNCA envie as duas opções. Escolha apenas o tom correto baseado no status atual. Assine como "Seu Assistente IA".`;
         
         const aiResp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
           method: 'POST',
@@ -401,7 +402,7 @@ async function askPhaseQuestion(
     
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: `🎉 **Checklist Concluído!** Você respondeu a todas as 20 fases da instalação. Obrigado por enviar as atualizações!${aiMessage}\n\n📊 [Veja o seu relatório de progresso aqui](${reportUrl})`,
+      text: `🎉 **Checklist Concluído!** Você respondeu a todas as 26 fases da instalação e ajustes. Obrigado por enviar as atualizações!${aiMessage}\n\n📊 [Veja o seu relatório de progresso aqui](${reportUrl})`,
       parse_mode: 'Markdown',
     }, log);
     
@@ -427,10 +428,10 @@ async function askPhaseQuestion(
     return;
   }
 
-  log(`Sending question for Phase [${phaseNum}/20]: "${phase.name}"`);
+  log(`Sending question for Phase [${phaseNum}/26]: "${phase.name}"`);
   await sendTelegram('sendMessage', {
     chat_id: chatId,
-    text: `📍 **Fase [${phaseNum}/20]:** ${phase.name}\n\n**Esta fase já foi executada ou iniciada?**`,
+    text: `📍 **Fase [${phaseNum}/26]:** ${phase.name}\n\n**Esta fase já foi executada ou iniciada?**`,
     parse_mode: 'Markdown',
     reply_markup: {
       inline_keyboard: [
@@ -451,6 +452,46 @@ async function askPhaseQuestion(
     temp_phase_number: phaseNum,
     updated_at: new Date().toISOString(),
   });
+}
+
+async function startProjectChecklist(chatId: string, project: any, profileId: string, log: (...args: any[]) => void) {
+  log(`Starting checklist for project "${project.name}" (ID: ${project.id})`);
+  
+  const { data: phasesProgress, error: phaseErr } = await supabase
+    .from('project_phases_progress')
+    .select(`
+      *,
+      phases:phase_id (
+        id,
+        phase_number,
+        name
+      )
+    `)
+    .eq('project_id', project.id);
+
+  if (phaseErr || !phasesProgress || phasesProgress.length === 0) {
+    log('Error or empty phases progress:', phaseErr);
+    await sendTelegram('sendMessage', {
+      chat_id: chatId,
+      text: `Erro ao buscar o progresso do projeto "${project.name}".`,
+    }, log);
+    return;
+  }
+
+  const sortedPhases = phasesProgress.sort((a: any, b: any) => 
+    (a.phases?.phase_number || 0) - (b.phases?.phase_number || 0)
+  );
+
+  const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[25];
+  const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 26;
+
+  await sendTelegram('sendMessage', {
+    chat_id: chatId,
+    text: `🏗️ **Projeto:** ${project.name}\n\nIniciando atualização de progresso...`,
+    parse_mode: 'Markdown',
+  }, log);
+
+  await askPhaseQuestion(chatId, project.id, currentPhaseNum, profileId, log);
 }
 
 async function handleMessage(message: any, log: (...args: any[]) => void) {
@@ -492,7 +533,7 @@ async function handleMessage(message: any, log: (...args: any[]) => void) {
     log('Processing /start command');
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: `Olá, **${profile.full_name}**! Técnico autorizado de instalação.\n\nEste bot serve para atualizar as 20 fases da instalação de elevadores comerciais atribuídas à sua equipe.\n\nUse o comando /atualizar para enviar o relatório de progresso do seu projeto atual.`,
+      text: `Olá, **${profile.full_name}**! Técnico autorizado de instalação.\n\nEste bot serve para atualizar as 26 fases da instalação e ajustes de elevadores comerciais atribuídas à sua equipe.\n\nUse o comando /atualizar para enviar o relatório de progresso do seu projeto atual.`,
       parse_mode: 'Markdown',
     }, log);
     return;
@@ -591,51 +632,28 @@ async function handleMessage(message: any, log: (...args: any[]) => void) {
       return;
     }
 
-    // Default to the first (newest) active project
-    const activeProject = allProjects[0];
-    log(`Selected active project: "${activeProject.name}" (ID: ${activeProject.id})`);
-
-    // 5. Fetch all phases for this project to calculate the current phase (first incomplete)
-    log('Fetching project phases progress...');
-    const { data: phasesProgress, error: phaseErr } = await supabase
-      .from('project_phases_progress')
-      .select(`
-        *,
-        phases:phase_id (
-          id,
-          phase_number,
-          name
-        )
-      `)
-      .eq('project_id', activeProject.id);
-
-    if (phaseErr || !phasesProgress || phasesProgress.length === 0) {
-      log('Error or empty phases progress:', phaseErr);
-      await sendTelegram('sendMessage', {
-        chat_id: chatId,
-        text: `Erro ao buscar o progresso do projeto "${activeProject.name}".`,
-      }, log);
+    if (allProjects.length === 1) {
+      const activeProject = allProjects[0];
+      await startProjectChecklist(chatId, activeProject, profile.id, log);
       return;
     }
 
-    // Sort by phase number in memory
-    const sortedPhases = phasesProgress.sort((a: any, b: any) => 
-      (a.phases?.phase_number || 0) - (b.phases?.phase_number || 0)
-    );
+    // Multiple projects logic
+    log(`User has ${allProjects.length} active projects. Sending selection menu.`);
+    const keyboard = allProjects.map(p => {
+      const btnText = `${p.name}${p.elevator_model ? ` - ${p.elevator_model}` : ''}`;
+      return [{ text: `🏗️ ${btnText}`, callback_data: `select_project:${p.id}` }];
+    });
 
-    // Find the current active phase (first phase that is not 100% complete)
-    const currentPhaseProgress = sortedPhases.find((p: any) => p.progress_percent < 100) || sortedPhases[19];
-    const currentPhaseNum = currentPhaseProgress.phases?.phase_number || 20;
-
-    // Send header message first
     await sendTelegram('sendMessage', {
       chat_id: chatId,
-      text: `🏗️ **Projeto:** ${activeProject.name}\n\nIniciando atualização de progresso...`,
+      text: `Você possui **${allProjects.length}** obras em andamento.\n\nQual delas você deseja atualizar agora?`,
       parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: keyboard
+      }
     }, log);
 
-    // Call askPhaseQuestion for the first incomplete phase
-    await askPhaseQuestion(chatId, activeProject.id, currentPhaseNum, profile.id, log);
     return;
   }
 
@@ -670,6 +688,35 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
   }
 
   const profileId = profile.id;
+
+  if (action === 'select_project') {
+    log(`User selected project ID: ${value}`);
+    const { data: project, error: projErr } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', value)
+      .maybeSingle();
+
+    if (projErr || !project) {
+      await sendTelegram('sendMessage', {
+        chat_id: chatId,
+        text: 'Erro ao carregar o projeto selecionado. Tente novamente.',
+      }, log);
+      return;
+    }
+
+    if (callbackQuery.message) {
+      await sendTelegram('editMessageText', {
+        chat_id: chatId,
+        message_id: callbackQuery.message.message_id,
+        text: `Obra selecionada: **${project.name}**`,
+        parse_mode: 'Markdown'
+      }, log);
+    }
+
+    await startProjectChecklist(chatId, project, profileId, log);
+    return;
+  }
 
   // 2. Fetch session to get projectId and phaseNum
   const { data: session, error: sessionErr } = await supabase
@@ -716,14 +763,14 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
         await sendTelegram('editMessageText', {
           chat_id: chatId,
           message_id: callbackQuery.message.message_id,
-          text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👍 Sim`,
+          text: `📍 **Fase [${phaseNum}/26]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👍 Sim`,
           parse_mode: 'Markdown'
         }, log);
       }
 
       await sendTelegram('sendMessage', {
         chat_id: chatId,
-        text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\nQual o **percentual executado**?`,
+        text: `📍 **Fase [${phaseNum}/26]:** ${phaseName}\n\nQual o **percentual executado**?`,
         reply_markup: {
           inline_keyboard: [
             [
@@ -756,7 +803,7 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
         await sendTelegram('editMessageText', {
           chat_id: chatId,
           message_id: callbackQuery.message.message_id,
-          text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👎 Não`,
+          text: `📍 **Fase [${phaseNum}/26]:** ${phaseName}\n\n**Esta fase já foi executada ou iniciada?** 👎 Não`,
           parse_mode: 'Markdown'
         }, log);
       }
@@ -774,7 +821,7 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
 
       await sendTelegram('sendMessage', {
         chat_id: chatId,
-        text: `Entendido. A **Fase [${phaseNum}/20]: ${phaseName}** foi registrada como **Não executada (0%)**.`,
+        text: `Entendido. A **Fase [${phaseNum}/26]: ${phaseName}** foi registrada como **Não executada (0%)**.`,
         parse_mode: 'Markdown',
       }, log);
 
@@ -790,7 +837,7 @@ async function handleCallbackQuery(callbackQuery: any, log: (...args: any[]) => 
       await sendTelegram('editMessageText', {
         chat_id: chatId,
         message_id: callbackQuery.message.message_id,
-        text: `📍 **Fase [${phaseNum}/20]:** ${phaseName}\n\nQual o **percentual executado**? 📊 ${progressPercent}%`,
+        text: `📍 **Fase [${phaseNum}/26]:** ${phaseName}\n\nQual o **percentual executado**? 📊 ${value}%`,
         parse_mode: 'Markdown'
       }, log);
     }
