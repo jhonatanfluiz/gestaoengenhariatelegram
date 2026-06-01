@@ -622,9 +622,4 @@ label {
   div[style*="grid-template-columns"] {
     grid-template-columns: 1fr !important;
   }
-
-  /* Force flex containers to wrap */
-  div[style*="display: flex"] {
-    flex-wrap: wrap;
-  }
 }

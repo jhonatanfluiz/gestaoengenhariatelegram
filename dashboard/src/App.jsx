@@ -778,13 +778,26 @@ export default function App() {
   };
 
   const fetchProjectAuditLogs = async (projId) => {
+    const { data: phasesData } = await supabase
+      .from('project_phases_progress')
+      .select('id')
+      .eq('project_id', projId);
+      
+    const phaseIds = phasesData ? phasesData.map(p => p.id) : [];
+
+    if (phaseIds.length === 0) {
+      setProjectLogs([]);
+      return;
+    }
+
     const { data, error } = await supabase
       .from('change_logs')
       .select(`
         *,
         changed_by_profile:profiles(full_name)
       `)
-      .eq('record_id', projId)
+      .in('record_id', phaseIds)
+      .eq('table_name', 'project_phases_progress')
       .order('changed_at', { ascending: false })
       .limit(10);
 
@@ -2093,7 +2106,8 @@ ${spreadsheetContext}
    - Obras com progresso alto (>80%), na fase de "Ajustes", ou com poucas pendências devem ser as fortes candidatas para 30 dias.
    - Obras em montagem inicial devem ser projetadas para 60 dias ou mais, cruzando com a "Projeção Linear".
    - Separe de forma super clara: 🟢 Entregas nos próximos 30 dias vs 🟡 Entregas nos próximos 60 dias.
-4. Para dúvidas técnicas de montagem, use sua expertise para orientar com autoridade.
+4. **AVALIAÇÃO DE TÉCNICO**: Quando solicitado para avaliar um técnico, analise o desempenho recente (curto prazo, ex: últimos dias/semanas) e também o histórico de longo prazo (12 meses), cruzando a produtividade, histórico de logs e pendências resolvidas.
+5. Para dúvidas técnicas de montagem, use sua expertise para orientar com autoridade.
 
 Histórico da conversa atual:
 ${chatMessages.map(msg => `${msg.role === 'user' ? 'Gestor' : 'Assistente IA'}: ${msg.content}`).join('\n')}
@@ -3874,7 +3888,7 @@ Assistente IA:`;
                         <Calendar size={20} /> <h3 style={{ margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Cronograma</h3>
                       </div>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {activePhase ? `Fase Atual: ${activePhase.phases?.phase_number} - ${activePhase.progress_percent}%` : 'Nenhuma fase'}
+                        {activePhase ? `Fase Atual: ${activePhase.phases?.phase_number} - ${activePhase.phases?.name || 'Fase'} - ${activePhase.progress_percent}%` : 'Nenhuma fase'}
                       </p>
                     </div>
 
@@ -5521,7 +5535,7 @@ Assistente IA:`;
 
           {/* AI Chat tab */}
           {activeTab === 'ai-chat' && (
-            <div className="glass-panel animate-fade-in" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: '580px' }}>
+            <div className="glass-panel animate-fade-in" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', minHeight: '70vh' }}>
               <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '14px' }}>
                 <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem', fontWeight: 600 }}>
                   <Brain size={22} style={{ color: '#06b6d4' }} />
