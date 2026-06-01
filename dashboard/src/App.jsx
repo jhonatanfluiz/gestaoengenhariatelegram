@@ -3713,7 +3713,19 @@ Assistente IA:`;
 
       {/* Header */}
       <header className="glass-panel no-print" style={{ margin: '16px', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div 
+          onClick={() => {
+            setActiveTab('menu');
+            setActiveProject(null);
+            setShowAdjusterManagement(false);
+            setShowCompanyManagement(false);
+            setShowSettings(false);
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', transition: 'opacity 0.2s' }}
+          onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
+          onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+          title="Voltar ao Início"
+        >
           <Activity style={{ color: '#06b6d4' }} size={28} />
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>HoistFlow</h2>
