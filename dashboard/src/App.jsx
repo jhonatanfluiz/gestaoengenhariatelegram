@@ -3784,7 +3784,13 @@ Assistente IA:`;
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#06b6d4' }}>
                         <Activity size={20} /> <h3 style={{ margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Fases da Obra</h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem' }}>Concluídas: <strong style={{ color: '#fff' }}>{completedPhases} / 26</strong></p>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Concluídas:</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                          <strong style={{ color: '#fff', fontSize: '2rem', lineHeight: '1.1' }}>{completedPhases}</strong>
+                          <span style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>/ 26</span>
+                        </div>
+                      </div>
                     </div>
                     
                     <div onClick={() => setProjectSubTab('report')} className="cascade-card" style={{ padding: '16px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #10b981', justifyContent: 'center' }}>
@@ -3814,7 +3820,13 @@ Assistente IA:`;
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
                         <AlertTriangle size={20} /> <h3 style={{ margin: 0, fontSize: '1.05rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Ocorrências</h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.8rem' }}>Resolvidas: <strong style={{ color: '#fff' }}>{resolvedIssues} / {totalIssues}</strong></p>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Resolvidas:</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                          <strong style={{ color: '#fff', fontSize: '2rem', lineHeight: '1.1' }}>{resolvedIssues}</strong>
+                          <span style={{ color: '#94a3b8', fontSize: '1rem', fontWeight: 600 }}>/ {totalIssues}</span>
+                        </div>
+                      </div>
                     </div>
                   </>
                 );
@@ -4154,8 +4166,11 @@ Assistente IA:`;
                           🏗️ Elevadores em Montagem
                         </h3>
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
-                        <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Total em andamento: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{projects.length}</strong></p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '8px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Total em andamento:</span>
+                          <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{projects.length}</strong>
+                        </div>
                         {delayedProjectsCount > 0 && (
                           <span style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600 }}>
                             ⚠️ {delayedProjectsCount} em atraso
@@ -4168,14 +4183,23 @@ Assistente IA:`;
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
                         <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🔧 Elevadores para Ajustes</h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Em ajuste: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{projectsInAdjustment.length}/{projectsReadyForAdjustment.length}</strong></p>
+                      <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Em ajuste:</span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                          <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{projectsInAdjustment.length}</strong>
+                          <span style={{ color: '#94a3b8', fontSize: '1.2rem', fontWeight: 600 }}>/ {projectsReadyForAdjustment.length}</span>
+                        </div>
+                      </div>
                     </div>
 
                     <div onClick={() => setActiveTab('s-curve')} style={{...cardStyle, borderTop: '4px solid #8b5cf6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#8b5cf6' }}>
                         <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📈 Curvas de Evolução</h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Média de Produtividade: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{avgProductivity}%</strong></p>
+                      <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Média de Produtividade:</span>
+                        <strong style={{ color: '#fff', fontSize: '2.5rem', lineHeight: '1.1' }}>{avgProductivity}%</strong>
+                      </div>
                       
                       <div className="card-details" style={{ maxHeight: 0, opacity: 0, overflow: 'hidden', transition: 'all 0.3s ease', fontSize: '0.75rem', color: '#a78bfa', marginTop: 0 }}>
                         <hr style={{ borderColor: 'rgba(139, 92, 246, 0.2)', margin: '4px 0 8px 0' }} />
@@ -4188,8 +4212,11 @@ Assistente IA:`;
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
                         <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🎯 Previsões de Entrega</h3>
                       </div>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Encerram neste mês: <strong style={{ color: '#fff', fontSize: '1.1rem' }}>{endingThisMonth}</strong></p>
-                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Concluídos/Entregues: <strong style={{ color: '#10b981', fontSize: '1.1rem' }}>{deliveredTotal}</strong></p>
+                      <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                        <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Concluídos/Entregues:</span>
+                        <strong style={{ color: '#10b981', fontSize: '2.5rem', lineHeight: '1.1' }}>{deliveredTotal}</strong>
+                      </div>
+                      <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>Encerram neste mês: <strong style={{ color: '#fff' }}>{endingThisMonth}</strong></p>
                     </div>
 
                     <div onClick={() => setActiveTab('teams')} style={{...cardStyle, borderTop: '4px solid #10b981'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
