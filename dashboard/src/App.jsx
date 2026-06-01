@@ -138,6 +138,9 @@ export default function App() {
   
   // Active selected elements
   const [activeProject, setActiveProject] = useState(null);
+  
+  // Exact productivity trend
+  const [productivityTrendExact, setProductivityTrendExact] = useState(0);
   const [projectPhases, setProjectPhases] = useState([]);
   const [projectLogs, setProjectLogs] = useState([]);
   
@@ -750,8 +753,35 @@ export default function App() {
     const { data: gIssues, error: gErr } = await issuesQuery.order('created_at', { ascending: false });
     if (gErr) console.error(gErr);
     else setGlobalIssues(gIssues || []);
-  };
 
+    // 10. Fetch exact productivity trend mathematically over the last 7 days
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const { data: recentUpdates, error: trendErr } = await supabase
+        .from('change_logs')
+        .select('old_data, new_data')
+        .eq('table_name', 'project_phases_progress')
+        .eq('action', 'UPDATE')
+        .gte('changed_at', sevenDaysAgo.toISOString());
+        
+      if (!trendErr && recentUpdates && projs) {
+        let totalPercentIncreased = 0;
+        recentUpdates.forEach(log => {
+          const oldVal = log.old_data?.progress_percent || 0;
+          const newVal = log.new_data?.progress_percent || 0;
+          if (newVal > oldVal) {
+            totalPercentIncreased += (newVal - oldVal);
+          }
+        });
+        const activeProjectsCount = projs.filter(p => p.status !== 'completed').length || projs.length;
+        if (activeProjectsCount > 0) {
+          const trend = Math.round(totalPercentIncreased / (26 * activeProjectsCount));
+          setProductivityTrendExact(trend);
+        }
+      }
+    } catch(e) { console.error('Error fetching trend:', e); }
+  };
   const fetchProjectPhases = async (projId) => {
     const { data, error } = await supabase
       .from('project_phases_progress')
@@ -4236,7 +4266,7 @@ Assistente IA:`;
                 }).length;
                 
                 // Exemplo de tendência (pode ser calculado com base no histórico real futuramente)
-                const productivityTrend = 5; 
+                const productivityTrend = productivityTrendExact; 
                 const isTrendPositive = productivityTrend >= 0;
                 
                 const handleHover = e => {
