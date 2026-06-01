@@ -4320,14 +4320,21 @@ Assistente IA:`;
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981' }}>
                             <h3 style={{ margin: 0, fontSize: '1.2rem' }}>👥 Equipes Fixas & Técnicos</h3>
                           </div>
-                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Gestão de equipe e perfis</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Total de Equipes:</span>
+                            <strong style={{ color: '#10b981', fontSize: '2.5rem', lineHeight: '1.1' }}>{teams.length}</strong>
+                          </div>
                         </div>
 
                         <div onClick={() => setActiveTab('companies')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
                             <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🏢 Empresas Contratadas</h3>
                           </div>
-                          <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Gerenciar parceiros comerciais</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', marginTop: '8px' }}>
+                            <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Total de Empresas:</span>
+                            <strong style={{ color: '#f59e0b', fontSize: '2.5rem', lineHeight: '1.1' }}>{companies.length}</strong>
+                          </div>
+                          <p style={{ margin: '8px 0 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>Técnicos vinculados: <strong style={{ color: '#fff' }}>{technicians.length}</strong></p>
                         </div>
 
                         <div onClick={() => setActiveTab('phases')} style={{...cardStyle, borderTop: '4px solid #3b82f6'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
