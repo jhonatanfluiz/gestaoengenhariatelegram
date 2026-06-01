@@ -120,6 +120,7 @@ export default function App() {
   const [companies, setCompanies] = useState([]);
   const [teams, setTeams] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [ajustadores, setAjustadores] = useState([]);
   const [phasesList, setPhasesList] = useState([]);
   const [adjustmentPhasesList, setAdjustmentPhasesList] = useState([]);
   const [allAdjustmentsProgress, setAllAdjustmentsProgress] = useState([]);
@@ -677,6 +678,16 @@ export default function App() {
 
     if (err5) console.error(err5);
     else setTeams(tms || []);
+
+    // 6. Fetch ajustadores
+    const { data: ajusts, error: errA } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'ajustador')
+      .order('full_name');
+
+    if (errA) console.error(errA);
+    else setAjustadores(ajusts || []);
 
     // 6. Fetch 20 Standard Phases Catalog
     const { data: phs, error: err6 } = await supabase
@@ -1590,6 +1601,17 @@ export default function App() {
       showToast('Erro ao excluir técnico: ' + error.message, 'danger');
     } else {
       showToast('Técnico excluído com sucesso!');
+      fetchDashboardData();
+    }
+  };
+
+  const handleDeleteAjustador = async (id) => {
+    if (!window.confirm('Tem certeza de que deseja excluir este ajustador?')) return;
+    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    if (error) {
+      showToast('Erro ao excluir ajustador: ' + error.message, 'danger');
+    } else {
+      showToast('Ajustador excluído com sucesso!');
       fetchDashboardData();
     }
   };
@@ -4307,6 +4329,13 @@ Assistente IA:`;
                       </div>
                       <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Links para visualização dos clientes</p>
                     </div>
+
+                    <div onClick={() => setActiveTab('ajustadores_list')} style={{...cardStyle, borderTop: '4px solid #f59e0b'}} onMouseEnter={handleHover} onMouseLeave={handleLeave}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#f59e0b' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.2rem' }}>⚙️ Ajustadores</h3>
+                      </div>
+                      <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>Visualizar e remover ajustadores</p>
+                    </div>
                   </>
                 );
               })()}
@@ -5711,6 +5740,42 @@ Assistente IA:`;
         )}
 
           {/* Audit Logs tab */}
+          {activeTab === 'ajustadores_list' && (
+            <div className="card fade-in" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid #334155', paddingBottom: '16px' }}>
+                <h3 style={{ margin: 0 }}>⚙️ Ajustadores</h3>
+                <button onClick={() => setActiveTab('menu')} className="btn btn-secondary" style={{ padding: '8px 16px' }}>Voltar ao Menu</button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {ajustadores.length === 0 ? (
+                  <p style={{ color: '#94a3b8' }}>Nenhum ajustador cadastrado.</p>
+                ) : (
+                  ajustadores.map(aj => {
+                    const linkedTeam = teams.find(t => t.id === aj.team_id) || null; // Will fetch team logic differently if needed, but we can just show basic info
+                    return (
+                      <div key={aj.id} style={{ padding: '16px', background: '#1e293b', borderRadius: '8px', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <strong style={{ fontSize: '1.1rem', color: '#fff' }}>{aj.full_name}</strong>
+                          <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>E-mail: {aj.email || 'Não informado'}</span>
+                          <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>ID: {aj.identification_id || 'Não informado'}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button 
+                            onClick={() => handleDeleteAjustador(aj.id)} 
+                            style={{ padding: '8px 16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'history' && (
             <div className="glass-panel animate-fade-in" style={{ padding: '24px' }}>
               <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
