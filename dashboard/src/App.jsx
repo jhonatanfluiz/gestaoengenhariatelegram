@@ -4376,6 +4376,21 @@ Assistente IA:`;
                         </div>
                       </div>
 
+                      {proj.endereco && (
+                        <p style={{ margin: '0 0 12px 0', color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Flag size={14} style={{ flexShrink: 0 }} /> 
+                          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Endereço:</span>
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(proj.endereco)}`} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            style={{ color: '#06b6d4', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          >
+                            Abrir Maps
+                          </a>
+                        </p>
+                      )}
+
                       {/* Informações Secundárias (Visíveis apenas no hover) */}
                       <div className="project-card-details">
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
@@ -4405,21 +4420,6 @@ Assistente IA:`;
                             </p>
                           )}
                         </div>
-                        
-                        {proj.endereco && (
-                          <p style={{ margin: '0 0 16px 0', color: '#94a3b8', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Flag size={14} style={{ flexShrink: 0 }} /> 
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Endereço:</span>
-                            <a 
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(proj.endereco)}`} 
-                              target="_blank" 
-                              rel="noreferrer"
-                              style={{ color: '#06b6d4', textDecoration: 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                            >
-                              Abrir Maps
-                            </a>
-                          </p>
-                        )}
                         
                         {/* Esperado (Linear) e Prazos */}
                         <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
